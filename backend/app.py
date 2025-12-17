@@ -6,6 +6,8 @@ from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional, List
 import os
+import importlib
+import logging
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -22,8 +24,12 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
 DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
+# Logging: keep output minimal, silence noisy SQL logs
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
 # Create database engine
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, echo=True)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, echo=False)
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -107,6 +113,16 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Startup hook: verify DB connectivity once, log concise status
+@app.on_event("startup")
+def startup_check_db():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logging.info("Database connection: OK")
+    except Exception as exc:
+        logging.error("Database connection failed: %s", exc)
 
 # Health check endpoint
 @app.get("/")
@@ -192,5 +208,6 @@ async def get_conversations(session_id: Optional[str] = None, skip: int = 0, lim
     return conversations
 
 if __name__ == "__main__":
-    import uvicorn
+    # Lazy import to avoid linter complaints when uvicorn is not installed in the active editor interpreter
+    uvicorn = importlib.import_module("uvicorn")
     uvicorn.run(app, host="0.0.0.0", port=8000)
