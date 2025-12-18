@@ -1,0 +1,37 @@
+### Build artifacts
+/build/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/Makefile
+
+### Binaries
+*.exe
+*.dll
+*.lib
+*.pdb
+*.obj
+*.o
+*.a
+
+### CMake generated
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/Makefile
+
+### IDE / editor
+.vs/
+.vscode/
+*.code-workspace
+*.user
+*.suo
+*.sln.iml
+
+### OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.DS_Store
+
+

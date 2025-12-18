@@ -72,6 +72,7 @@ CMakeFiles/SenAIFrontend.dir/codegen:
 .PHONY : CMakeFiles/SenAIFrontend.dir/codegen
 
 CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj: CMakeFiles/SenAIFrontend.dir/flags.make
+CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj: CMakeFiles/SenAIFrontend.dir/includes_CXX.rsp
 CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj: D:/GitHub/SenAI/frontend/src/main.cpp
 CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj: CMakeFiles/SenAIFrontend.dir/compiler_depend.ts
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\GitHub\SenAI\frontend\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj"
@@ -85,19 +86,53 @@ CMakeFiles/SenAIFrontend.dir/src/main.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/SenAIFrontend.dir/src/main.cpp.s"
 	C:\msys64\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S D:\GitHub\SenAI\frontend\src\main.cpp -o CMakeFiles\SenAIFrontend.dir\src\main.cpp.s
 
+CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: CMakeFiles/SenAIFrontend.dir/flags.make
+CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: CMakeFiles/SenAIFrontend.dir/includes_CXX.rsp
+CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: D:/GitHub/SenAI/frontend/src/MainWindow.cpp
+CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: CMakeFiles/SenAIFrontend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\GitHub\SenAI\frontend\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj"
+	C:\msys64\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj -MF CMakeFiles\SenAIFrontend.dir\src\MainWindow.cpp.obj.d -o CMakeFiles\SenAIFrontend.dir\src\MainWindow.cpp.obj -c D:\GitHub\SenAI\frontend\src\MainWindow.cpp
+
+CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.i"
+	C:\msys64\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E D:\GitHub\SenAI\frontend\src\MainWindow.cpp > CMakeFiles\SenAIFrontend.dir\src\MainWindow.cpp.i
+
+CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.s"
+	C:\msys64\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S D:\GitHub\SenAI\frontend\src\MainWindow.cpp -o CMakeFiles\SenAIFrontend.dir\src\MainWindow.cpp.s
+
+CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj: CMakeFiles/SenAIFrontend.dir/flags.make
+CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj: CMakeFiles/SenAIFrontend.dir/includes_CXX.rsp
+CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj: D:/GitHub/SenAI/frontend/src/HttpClient.cpp
+CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj: CMakeFiles/SenAIFrontend.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\GitHub\SenAI\frontend\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj"
+	C:\msys64\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj -MF CMakeFiles\SenAIFrontend.dir\src\HttpClient.cpp.obj.d -o CMakeFiles\SenAIFrontend.dir\src\HttpClient.cpp.obj -c D:\GitHub\SenAI\frontend\src\HttpClient.cpp
+
+CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.i"
+	C:\msys64\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E D:\GitHub\SenAI\frontend\src\HttpClient.cpp > CMakeFiles\SenAIFrontend.dir\src\HttpClient.cpp.i
+
+CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.s"
+	C:\msys64\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S D:\GitHub\SenAI\frontend\src\HttpClient.cpp -o CMakeFiles\SenAIFrontend.dir\src\HttpClient.cpp.s
+
 # Object files for target SenAIFrontend
 SenAIFrontend_OBJECTS = \
-"CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj"
+"CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj" \
+"CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj" \
+"CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj"
 
 # External object files for target SenAIFrontend
 SenAIFrontend_EXTERNAL_OBJECTS =
 
 bin/SenAIFrontend.exe: CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj
+bin/SenAIFrontend.exe: CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj
+bin/SenAIFrontend.exe: CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj
 bin/SenAIFrontend.exe: CMakeFiles/SenAIFrontend.dir/build.make
 bin/SenAIFrontend.exe: CMakeFiles/SenAIFrontend.dir/linkLibs.rsp
 bin/SenAIFrontend.exe: CMakeFiles/SenAIFrontend.dir/objects1.rsp
 bin/SenAIFrontend.exe: CMakeFiles/SenAIFrontend.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=D:\GitHub\SenAI\frontend\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable bin\SenAIFrontend.exe"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=D:\GitHub\SenAI\frontend\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable bin\SenAIFrontend.exe"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles\SenAIFrontend.dir\link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

@@ -8,6 +8,8 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "D:/GitHub/SenAI/frontend/src/HttpClient.cpp" "CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj" "gcc" "CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj.d"
+  "D:/GitHub/SenAI/frontend/src/MainWindow.cpp" "CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj" "gcc" "CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj.d"
   "D:/GitHub/SenAI/frontend/src/main.cpp" "CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj" "gcc" "CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj.d"
   )
 

@@ -3,8 +3,21 @@ Một chatbot tự học hỏi
 
 ## Cấu trúc dự án
 
-- `backend/`: Backend Python (FastAPI)
-- `frontend/`: Frontend C++ cho Windows
+- `backend/`: Backend Python (FastAPI) - API server với PostgreSQL
+- `frontend/`: Frontend C++ cho Windows - Ứng dụng GUI kết nối với backend
+
+## Tính năng
+
+### Frontend (C++ Windows App)
+- **Chat với AI**: Gửi tin nhắn và nhận phản hồi từ AI Agent
+- **Quản lý Tasks**: Tạo và xem danh sách tasks
+- **Kết nối Backend**: Giao tiếp với FastAPI backend qua HTTP requests
+- **Giao diện GUI**: Ứng dụng Windows với Win32 API
+
+### Backend (FastAPI)
+- RESTful API với PostgreSQL database
+- Endpoints cho conversations và tasks
+- CORS enabled để hỗ trợ frontend
 
 ## Hướng dẫn Build và Chạy Frontend (C++)
 
@@ -75,6 +88,21 @@ cd D:\GitHub\SenAI\frontend\build\bin
 
 **Cách 3**: Double-click vào file `SenAIFrontend.exe` trong Windows Explorer.
 
+### Sử dụng ứng dụng
+
+**Lưu ý**: Đảm bảo backend đang chạy trước khi mở frontend!
+
+1. **Khởi động Backend** (xem hướng dẫn bên dưới)
+2. **Mở Frontend**: Chạy `SenAIFrontend.exe`
+3. **Chat với AI**:
+   - Nhập tin nhắn vào ô chat bên trái
+   - Nhấn nút "Gửi" hoặc Enter
+   - Xem lịch sử chat và phản hồi từ AI
+4. **Quản lý Tasks**:
+   - Nhập tên task và mô tả (tùy chọn) vào ô bên phải
+   - Nhấn "Tạo Task" để tạo task mới
+   - Nhấn "Làm mới Tasks" để xem danh sách tasks mới nhất
+
 ### Build lại sau khi thay đổi code
 
 Nếu bạn đã thay đổi code, chỉ cần chạy lại lệnh build:
@@ -137,3 +165,47 @@ uvicorn app:app --reload
 ```
 
 Server sẽ chạy tại `http://localhost:8000`
+
+### API Endpoints
+
+Backend cung cấp các endpoints sau:
+
+- `GET /` - Health check cơ bản
+- `GET /health` - Health check với database
+- `POST /conversations` - Tạo conversation mới (chat với AI)
+- `GET /conversations` - Lấy danh sách conversations
+- `POST /tasks` - Tạo task mới
+- `GET /tasks` - Lấy danh sách tasks
+- `GET /tasks/{task_id}` - Lấy task cụ thể
+- `PUT /tasks/{task_id}` - Cập nhật task
+
+### Cấu hình Database
+
+Backend sử dụng PostgreSQL. Cấu hình trong file `.env` hoặc biến môi trường:
+
+```
+DB_HOST=192.168.0.106
+DB_PORT=5432
+DB_NAME=ai_system
+DB_USER=postgres
+DB_PASSWORD=your_password
+```
+
+## Kết nối Frontend và Backend
+
+1. **Khởi động Backend** trước:
+   ```powershell
+   cd backend
+   .\venv\Scripts\Activate.ps1
+   uvicorn app:app --reload
+   ```
+
+2. **Khởi động Frontend**:
+   ```powershell
+   cd frontend\build\bin
+   .\SenAIFrontend.exe
+   ```
+
+3. Frontend sẽ tự động kết nối đến `http://localhost:8000`
+
+**Lưu ý**: Nếu backend chạy trên port khác hoặc địa chỉ khác, bạn cần sửa trong code `HttpClient.cpp` (dòng khởi tạo `HttpClient`).

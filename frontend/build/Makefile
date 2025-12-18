@@ -128,6 +128,54 @@ SenAIFrontend/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/build
 .PHONY : SenAIFrontend/fast
 
+src/HttpClient.obj: src/HttpClient.cpp.obj
+.PHONY : src/HttpClient.obj
+
+# target to build an object file
+src/HttpClient.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj
+.PHONY : src/HttpClient.cpp.obj
+
+src/HttpClient.i: src/HttpClient.cpp.i
+.PHONY : src/HttpClient.i
+
+# target to preprocess a source file
+src/HttpClient.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.i
+.PHONY : src/HttpClient.cpp.i
+
+src/HttpClient.s: src/HttpClient.cpp.s
+.PHONY : src/HttpClient.s
+
+# target to generate assembly for a file
+src/HttpClient.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.s
+.PHONY : src/HttpClient.cpp.s
+
+src/MainWindow.obj: src/MainWindow.cpp.obj
+.PHONY : src/MainWindow.obj
+
+# target to build an object file
+src/MainWindow.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj
+.PHONY : src/MainWindow.cpp.obj
+
+src/MainWindow.i: src/MainWindow.cpp.i
+.PHONY : src/MainWindow.i
+
+# target to preprocess a source file
+src/MainWindow.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.i
+.PHONY : src/MainWindow.cpp.i
+
+src/MainWindow.s: src/MainWindow.cpp.s
+.PHONY : src/MainWindow.s
+
+# target to generate assembly for a file
+src/MainWindow.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.s
+.PHONY : src/MainWindow.cpp.s
+
 src/main.obj: src/main.cpp.obj
 .PHONY : src/main.obj
 
@@ -161,6 +209,12 @@ help:
 	@echo ... edit_cache
 	@echo ... rebuild_cache
 	@echo ... SenAIFrontend
+	@echo ... src/HttpClient.obj
+	@echo ... src/HttpClient.i
+	@echo ... src/HttpClient.s
+	@echo ... src/MainWindow.obj
+	@echo ... src/MainWindow.i
+	@echo ... src/MainWindow.s
 	@echo ... src/main.obj
 	@echo ... src/main.i
 	@echo ... src/main.s
