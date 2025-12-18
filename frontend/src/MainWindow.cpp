@@ -344,27 +344,15 @@ void MainWindow::DrawInputField(HDC hdc) {
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, RGB(150, 150, 150));
         SelectObject(hdc, hInputFont_);
-        
+
         RECT textRect = inputRect_;
-        textRect.left += 50;
+        // +50 giống với vị trí control EDIT, +3 để bù margin bên trong EDIT
+        textRect.left += 53;
         textRect.right -= 50;
-        
+
         const wchar_t* placeholder = L"Hỏi bất kỳ điều gì";
         DrawTextW(hdc, placeholder, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
-    
-    // Draw "+" icon on the left (simplified as text)
-    SetTextColor(hdc, RGB(200, 200, 200));
-    RECT plusRect = inputRect_;
-    plusRect.left += 15;
-    plusRect.right = plusRect.left + 30;
-    DrawTextW(hdc, L"+", -1, &plusRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    
-    // Draw microphone icon on the right (simplified as "🎤")
-    RECT micRect = inputRect_;
-    micRect.right -= 15;
-    micRect.left = micRect.right - 30;
-    DrawTextW(hdc, L"🎤", -1, &micRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     
     SelectObject(hdc, oldBrush);
     SelectObject(hdc, oldPen);

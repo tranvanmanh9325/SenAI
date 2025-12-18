@@ -520,6 +520,7 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: D:/GitHub/SenAI/frontend/sr
   C:/msys64/ucrt64/include/c++/14.2.0/clocale \
   C:/msys64/ucrt64/include/c++/14.2.0/concepts \
   C:/msys64/ucrt64/include/c++/14.2.0/cstddef \
+  C:/msys64/ucrt64/include/c++/14.2.0/cstdint \
   C:/msys64/ucrt64/include/c++/14.2.0/cstdio \
   C:/msys64/ucrt64/include/c++/14.2.0/cstdlib \
   C:/msys64/ucrt64/include/c++/14.2.0/cwchar \
@@ -928,6 +929,7 @@ CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj: D:/GitHub/SenAI/frontend/src/main
   C:/msys64/ucrt64/include/c++/14.2.0/clocale \
   C:/msys64/ucrt64/include/c++/14.2.0/concepts \
   C:/msys64/ucrt64/include/c++/14.2.0/cstddef \
+  C:/msys64/ucrt64/include/c++/14.2.0/cstdint \
   C:/msys64/ucrt64/include/c++/14.2.0/cstdio \
   C:/msys64/ucrt64/include/c++/14.2.0/cstdlib \
   C:/msys64/ucrt64/include/c++/14.2.0/cwchar \
@@ -1887,6 +1889,8 @@ C:/msys64/ucrt64/include/threadpoollegacyapiset.h:
 C:/msys64/ucrt64/include/time.h:
 
 C:/msys64/ucrt64/include/timeapi.h:
+
+C:/msys64/ucrt64/include/c++/14.2.0/cstdint:
 
 C:/msys64/ucrt64/include/timezoneapi.h:
 
