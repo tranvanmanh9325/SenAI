@@ -32,6 +32,7 @@
         "onupdate",
         "OVERLAPPEDWINDOW",
         "PAINTSTRUCT",
+        "pycache",
         "pytest",
         "Segoe",
         "sessionmaker",
