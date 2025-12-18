@@ -6,6 +6,27 @@
 #include <dwmapi.h>
 #include <string>
 
+// Helper functions to convert between UTF-16 (Windows wide) and UTF-8 (backend)
+namespace {
+    std::string WideToUtf8(const std::wstring& wstr) {
+        if (wstr.empty()) return {};
+        int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        if (sizeNeeded <= 0) return {};
+        std::string result(sizeNeeded - 1, '\0'); // exclude terminating null
+        WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, result.data(), sizeNeeded - 1, nullptr, nullptr);
+        return result;
+    }
+
+    std::wstring Utf8ToWide(const std::string& str) {
+        if (str.empty()) return {};
+        int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
+        if (sizeNeeded <= 0) return {};
+        std::wstring result(sizeNeeded - 1, L'\0'); // exclude terminating null
+        MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, result.data(), sizeNeeded - 1);
+        return result;
+    }
+}
+
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "dwmapi.lib")
@@ -107,9 +128,10 @@ void MainWindow::Show(int nCmdShow) {
 
 int MainWindow::Run() {
     MSG msg = {};
-    while (GetMessage(&msg, NULL, 0, 0)) {
+    // Use explicit wide-character message APIs to avoid ANSI conversions
+    while (GetMessageW(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        DispatchMessageW(&msg);
     }
     return 0;
 }
@@ -135,7 +157,8 @@ LRESULT CALLBACK MainWindow::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
         return pThis->HandleMessage(uMsg, wParam, lParam);
     }
     
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    // Fallback to wide-character default window procedure
+    return DefWindowProcW(hwnd, uMsg, wParam, lParam);
 }
 
 LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -194,7 +217,8 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
             return 0;
     }
     
-    return DefWindowProc(hwnd_, uMsg, wParam, lParam);
+    // Ensure we always call the wide-character default window procedure
+    return DefWindowProcW(hwnd_, uMsg, wParam, lParam);
 }
 
 void MainWindow::OnCreate() {
@@ -251,8 +275,8 @@ void MainWindow::OnCreate() {
         0, 0, 0, 0,
         hwnd_, (HMENU)1002, hInst, NULL);
     
-    // Set placeholder text
-    SetWindowTextA(hChatInput_, "");
+    // Clear initial text (Unicode-safe)
+    SetWindowTextW(hChatInput_, L"");
     
     // Update window
     UpdateWindow(hwnd_);
@@ -264,9 +288,9 @@ void MainWindow::OnCreate() {
 void MainWindow::OnCommand(WPARAM wParam) {
     if (LOWORD(wParam) == 1001) { // Chat input
         if (HIWORD(wParam) == EN_CHANGE) {
-            char buffer[1024];
-            GetWindowTextA(hChatInput_, buffer, sizeof(buffer));
-            showPlaceholder_ = (strlen(buffer) == 0);
+            wchar_t buffer[1024];
+            GetWindowTextW(hChatInput_, buffer, static_cast<int>(sizeof(buffer) / sizeof(wchar_t)));
+            showPlaceholder_ = (buffer[0] == L'\0');
             InvalidateRect(hwnd_, &inputRect_, FALSE);
         }
     }
@@ -359,12 +383,14 @@ void MainWindow::DrawInputField(HDC hdc) {
 }
 
 void MainWindow::SendChatMessage() {
-    char buffer[1024];
-    GetWindowTextA(hChatInput_, buffer, sizeof(buffer));
+    wchar_t buffer[1024];
+    GetWindowTextW(hChatInput_, buffer, static_cast<int>(sizeof(buffer) / sizeof(wchar_t)));
     
-    if (strlen(buffer) == 0) return;
+    if (buffer[0] == L'\0') return;
     
-    std::string message(buffer);
+    std::wstring wmessage(buffer);
+    std::string message = WideToUtf8(wmessage);
+
     ClearEdit(hChatInput_);
     showPlaceholder_ = true;
     InvalidateRect(hwnd_, &inputRect_, FALSE);
@@ -372,15 +398,17 @@ void MainWindow::SendChatMessage() {
     // Send message to backend
     std::string response = httpClient_.sendMessage(message, sessionId_);
     
-    // Append to history
-    AppendTextToEdit(hChatHistory_, "Bạn: " + message + "\r\n");
-    AppendTextToEdit(hChatHistory_, "AI: " + response + "\r\n\r\n");
+    // Append to history (display using Unicode)
+    std::wstring historyUser = L"Bạn: " + wmessage + L"\r\n";
+    std::wstring historyAi = L"AI: " + Utf8ToWide(response) + L"\r\n\r\n";
+    AppendTextToEdit(hChatHistory_, historyUser);
+    AppendTextToEdit(hChatHistory_, historyAi);
 }
 
 void MainWindow::RefreshConversations() {
     std::string conversations = httpClient_.getConversations(sessionId_);
     ClearEdit(hChatHistory_);
-    AppendTextToEdit(hChatHistory_, conversations);
+    AppendTextToEdit(hChatHistory_, Utf8ToWide(conversations));
 }
 
 void MainWindow::RefreshTasks() {
@@ -391,12 +419,12 @@ void MainWindow::CreateTask() {
     // Not used in new UI
 }
 
-void MainWindow::AppendTextToEdit(HWND hEdit, const std::string& text) {
-    int len = GetWindowTextLengthA(hEdit);
-    SendMessageA(hEdit, EM_SETSEL, len, len);
-    SendMessageA(hEdit, EM_REPLACESEL, FALSE, (LPARAM)text.c_str());
+void MainWindow::AppendTextToEdit(HWND hEdit, const std::wstring& text) {
+    int len = GetWindowTextLengthW(hEdit);
+    SendMessageW(hEdit, EM_SETSEL, len, len);
+    SendMessageW(hEdit, EM_REPLACESEL, FALSE, (LPARAM)text.c_str());
 }
 
 void MainWindow::ClearEdit(HWND hEdit) {
-    SetWindowTextA(hEdit, "");
+    SetWindowTextW(hEdit, L"");
 }

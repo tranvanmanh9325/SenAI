@@ -33,7 +33,7 @@ private:
     void RefreshTasks();
     void CreateTask();
     
-    void AppendTextToEdit(HWND hEdit, const std::string& text);
+    void AppendTextToEdit(HWND hEdit, const std::wstring& text);
     void ClearEdit(HWND hEdit);
     
     HWND hwnd_;
