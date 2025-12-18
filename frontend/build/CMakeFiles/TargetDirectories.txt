@@ -1,0 +1,3 @@
+D:/GitHub/SenAI/frontend/build/CMakeFiles/SenAIFrontend.dir
+D:/GitHub/SenAI/frontend/build/CMakeFiles/edit_cache.dir
+D:/GitHub/SenAI/frontend/build/CMakeFiles/rebuild_cache.dir
