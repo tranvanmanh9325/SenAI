@@ -3,6 +3,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj.d"
   "CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj"
   "CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj.d"
+  "CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.obj"
+  "CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.obj.d"
   "CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj"
   "CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj.d"
   "bin/SenAIFrontend.exe"

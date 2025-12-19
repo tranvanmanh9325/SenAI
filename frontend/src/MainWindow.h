@@ -29,6 +29,7 @@ private:
     
     void SendChatMessage();
     void DrawInputField(HDC hdc);
+    void DrawSendButton(HDC hdc, const RECT& rc);
     void RefreshConversations();
     void RefreshTasks();
     void CreateTask();
@@ -42,6 +43,7 @@ private:
     // Controls
     HWND hChatInput_;
     HWND hChatHistory_;
+    HWND hSendButton_;
     
     // Colors and brushes
     HBRUSH hDarkBrush_;

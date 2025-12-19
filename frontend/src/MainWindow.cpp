@@ -35,7 +35,8 @@ MainWindow::MainWindow()
     : hwnd_(NULL), hInstance_(NULL), sessionId_("default_session"),
       hDarkBrush_(NULL), hInputBrush_(NULL), hInputPen_(NULL),
       hTitleFont_(NULL), hInputFont_(NULL),
-      windowWidth_(900), windowHeight_(700), showPlaceholder_(true) {
+      windowWidth_(900), windowHeight_(700), showPlaceholder_(true),
+      hChatInput_(NULL), hChatHistory_(NULL), hSendButton_(NULL) {
     // Generate session ID
     sessionId_ = "session_" + std::to_string(GetTickCount());
     
@@ -201,6 +202,20 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
             SetTextColor(hdc, RGB(255, 255, 255));
             return (LRESULT)GetStockObject(NULL_BRUSH); // Transparent background
         }
+        case WM_CTLCOLORBTN: {
+            HDC hdc = (HDC)wParam;
+            SetBkColor(hdc, RGB(30, 30, 30));
+            SetTextColor(hdc, RGB(255, 255, 255));
+            return (LRESULT)hInputBrush_;
+        }
+        case WM_DRAWITEM: {
+            if (wParam == 1003) { // Send button
+                LPDRAWITEMSTRUCT dis = (LPDRAWITEMSTRUCT)lParam;
+                DrawSendButton(dis->hDC, dis->rcItem);
+                return TRUE;
+            }
+            break;
+        }
         case WM_CTLCOLORSTATIC: {
             HDC hdc = (HDC)wParam;
             SetBkColor(hdc, RGB(30, 30, 30));
@@ -221,165 +236,24 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
     return DefWindowProcW(hwnd_, uMsg, wParam, lParam);
 }
 
-void MainWindow::OnCreate() {
-    // Get module handle if hInstance_ is not set
-    HINSTANCE hInst = hInstance_ ? hInstance_ : GetModuleHandle(NULL);
-    
-    // Create fonts
-    hTitleFont_ = CreateFontW(-40, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    
-    // Larger font for input text
-    hInputFont_ = CreateFontW(-22, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    
-    RECT clientRect;
-    GetClientRect(hwnd_, &clientRect);
-    int width = clientRect.right - clientRect.left;
-    int height = clientRect.bottom - clientRect.top;
-    
-    // Calculate input field position (centered)
-    int inputWidth = width * 0.7; // 70% of window width
-    int inputHeight = 60;
-    int inputX = (width - inputWidth) / 2;
-    // Center vertically
-    int inputY = (height - inputHeight) / 2;
-    
-    inputRect_.left = inputX;
-    inputRect_.top = inputY;
-    inputRect_.right = inputX + inputWidth;
-    inputRect_.bottom = inputY + inputHeight;
-    
-    // Create chat input (single line, will be visually centered by padding)
-    int inputPaddingY = 16; // vertical padding inside rounded rect
-    hChatInput_ = CreateWindowW(L"EDIT", L"",
-        WS_CHILD | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL,
-        inputX + 50, inputY + inputPaddingY, inputWidth - 100, inputHeight - 2 * inputPaddingY,
-        hwnd_, (HMENU)1001, hInst, NULL);
-    
-    if (!hChatInput_) {
-        DWORD error = GetLastError();
-        wchar_t errorMsg[256];
-        swprintf_s(errorMsg, L"Failed to create input control\nError: %lu", error);
-        MessageBoxW(hwnd_, errorMsg, L"Error", MB_OK | MB_ICONERROR);
-    }
-    
-    // Set font and colors
-    SendMessage(hChatInput_, WM_SETFONT, (WPARAM)hInputFont_, TRUE);
-    
-    // Create hidden chat history for storing messages
-    hChatHistory_ = CreateWindowW(L"EDIT", L"",
-        WS_CHILD | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
-        0, 0, 0, 0,
-        hwnd_, (HMENU)1002, hInst, NULL);
-    
-    // Clear initial text (Unicode-safe)
-    SetWindowTextW(hChatInput_, L"");
-    
-    // Update window
-    UpdateWindow(hwnd_);
-    
-    // Delayed initialization
-    PostMessage(hwnd_, WM_USER + 1, 0, 0);
-}
-
 void MainWindow::OnCommand(WPARAM wParam) {
-    if (LOWORD(wParam) == 1001) { // Chat input
-        if (HIWORD(wParam) == EN_CHANGE) {
-            wchar_t buffer[1024];
-            GetWindowTextW(hChatInput_, buffer, static_cast<int>(sizeof(buffer) / sizeof(wchar_t)));
-            showPlaceholder_ = (buffer[0] == L'\0');
-            InvalidateRect(hwnd_, &inputRect_, FALSE);
-        }
+    switch (LOWORD(wParam)) {
+        case 1001: // Chat input
+            if (HIWORD(wParam) == EN_CHANGE) {
+                wchar_t buffer[1024];
+                GetWindowTextW(hChatInput_, buffer, static_cast<int>(sizeof(buffer) / sizeof(wchar_t)));
+                showPlaceholder_ = (buffer[0] == L'\0');
+                InvalidateRect(hwnd_, &inputRect_, FALSE);
+            }
+            break;
+        case 1003: // Send button
+            if (HIWORD(wParam) == BN_CLICKED) {
+                SendChatMessage();
+            }
+            break;
+        default:
+            break;
     }
-}
-
-void MainWindow::OnSize() {
-    RECT clientRect;
-    GetClientRect(hwnd_, &clientRect);
-    windowWidth_ = clientRect.right - clientRect.left;
-    windowHeight_ = clientRect.bottom - clientRect.top;
-    
-    // Recalculate input field position (keep centered)
-    int inputWidth = windowWidth_ * 0.7;
-    int inputHeight = 60;
-    int inputX = (windowWidth_ - inputWidth) / 2;
-    int inputY = (windowHeight_ - inputHeight) / 2;
-    
-    inputRect_.left = inputX;
-    inputRect_.top = inputY;
-    inputRect_.right = inputX + inputWidth;
-    inputRect_.bottom = inputY + inputHeight;
-    
-    // Update input control position (keep visually centered)
-    if (hChatInput_) {
-        int inputPaddingY = 16;
-        SetWindowPos(hChatInput_, NULL,
-                     inputX + 50, inputY + inputPaddingY,
-                     inputWidth - 100, inputHeight - 2 * inputPaddingY,
-                     SWP_NOZORDER);
-    }
-    
-    InvalidateRect(hwnd_, NULL, TRUE);
-}
-
-void MainWindow::OnPaint() {
-    PAINTSTRUCT ps;
-    HDC hdc = BeginPaint(hwnd_, &ps);
-    
-    // Fill background with dark color
-    RECT clientRect;
-    GetClientRect(hwnd_, &clientRect);
-    FillRect(hdc, &clientRect, hDarkBrush_);
-    
-    // Draw title text
-    SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(255, 255, 255));
-    SelectObject(hdc, hTitleFont_);
-    
-    const wchar_t* titleText = L"Hôm nay bạn có ý tưởng gì?";
-    RECT titleRect = {0, windowHeight_ / 2 - 150, windowWidth_, windowHeight_ / 2 - 100};
-    DrawTextW(hdc, titleText, -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    
-    // Draw input field
-    DrawInputField(hdc);
-    
-    EndPaint(hwnd_, &ps);
-}
-
-void MainWindow::OnEraseBkgnd(HDC hdc) {
-    RECT clientRect;
-    GetClientRect(hwnd_, &clientRect);
-    FillRect(hdc, &clientRect, hDarkBrush_);
-}
-
-void MainWindow::DrawInputField(HDC hdc) {
-    // Draw rounded rectangle for input field
-    HGDIOBJ oldBrush = SelectObject(hdc, hInputBrush_);
-    HGDIOBJ oldPen = SelectObject(hdc, hInputPen_);
-    
-    // Draw rounded rectangle (simplified as rectangle with rounded corners)
-    RoundRect(hdc, inputRect_.left, inputRect_.top, inputRect_.right, inputRect_.bottom, 30, 30);
-    
-    // Draw placeholder text if input is empty
-    if (showPlaceholder_) {
-        SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, RGB(150, 150, 150));
-        SelectObject(hdc, hInputFont_);
-
-        RECT textRect = inputRect_;
-        // +50 giống với vị trí control EDIT, +3 để bù margin bên trong EDIT
-        textRect.left += 53;
-        textRect.right -= 50;
-
-        const wchar_t* placeholder = L"Hỏi bất kỳ điều gì";
-        DrawTextW(hdc, placeholder, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    }
-    
-    SelectObject(hdc, oldBrush);
-    SelectObject(hdc, oldPen);
 }
 
 void MainWindow::SendChatMessage() {

@@ -13,6 +13,7 @@ endif()
 set(SOURCES
     src/main.cpp
     src/MainWindow.cpp
+    src/MainWindowUI.cpp
     src/HttpClient.cpp
 )
 

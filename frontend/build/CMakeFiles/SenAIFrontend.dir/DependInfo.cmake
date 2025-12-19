@@ -10,6 +10,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "D:/GitHub/SenAI/frontend/src/HttpClient.cpp" "CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj" "gcc" "CMakeFiles/SenAIFrontend.dir/src/HttpClient.cpp.obj.d"
   "D:/GitHub/SenAI/frontend/src/MainWindow.cpp" "CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj" "gcc" "CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj.d"
+  "D:/GitHub/SenAI/frontend/src/MainWindowUI.cpp" "CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.obj" "gcc" "CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.obj.d"
   "D:/GitHub/SenAI/frontend/src/main.cpp" "CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj" "gcc" "CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj.d"
   )
 

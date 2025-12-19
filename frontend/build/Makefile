@@ -176,6 +176,30 @@ src/MainWindow.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.s
 .PHONY : src/MainWindow.cpp.s
 
+src/MainWindowUI.obj: src/MainWindowUI.cpp.obj
+.PHONY : src/MainWindowUI.obj
+
+# target to build an object file
+src/MainWindowUI.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.obj
+.PHONY : src/MainWindowUI.cpp.obj
+
+src/MainWindowUI.i: src/MainWindowUI.cpp.i
+.PHONY : src/MainWindowUI.i
+
+# target to preprocess a source file
+src/MainWindowUI.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.i
+.PHONY : src/MainWindowUI.cpp.i
+
+src/MainWindowUI.s: src/MainWindowUI.cpp.s
+.PHONY : src/MainWindowUI.s
+
+# target to generate assembly for a file
+src/MainWindowUI.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\SenAIFrontend.dir\build.make CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.s
+.PHONY : src/MainWindowUI.cpp.s
+
 src/main.obj: src/main.cpp.obj
 .PHONY : src/main.obj
 
@@ -215,6 +239,9 @@ help:
 	@echo ... src/MainWindow.obj
 	@echo ... src/MainWindow.i
 	@echo ... src/MainWindow.s
+	@echo ... src/MainWindowUI.obj
+	@echo ... src/MainWindowUI.i
+	@echo ... src/MainWindowUI.s
 	@echo ... src/main.obj
 	@echo ... src/main.i
 	@echo ... src/main.s
