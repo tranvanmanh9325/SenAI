@@ -59,4 +59,3 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
         detail=f"Rate limit exceeded: {exc.detail}. Please try again later.",
         headers={"Retry-After": str(exc.retry_after) if hasattr(exc, 'retry_after') else "60"}
     )
-

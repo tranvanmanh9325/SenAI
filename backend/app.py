@@ -12,13 +12,13 @@ import logging
 from dotenv import load_dotenv
 
 # Import rate limiting
-from rate_limit import limiter, limiter_with_api_key, rate_limit_exceeded_handler
+from middleware.rate_limit import limiter, limiter_with_api_key, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 # Import LLM and Fine-tuning services
-from llm_service import llm_service
-from fine_tuning_service import FineTuningService
-from feedback_service import FeedbackService
+from services.llm_service import llm_service
+from services.fine_tuning_service import FineTuningService
+from services.feedback_service import FeedbackService
 
 # Load environment variables
 load_dotenv()
@@ -319,11 +319,13 @@ async def health_check(db: Session = Depends(get_db)):
             error_msg = "Database connection failed"
         raise HTTPException(status_code=503, detail=error_msg)
 
-# Include routes from routes.py (lazy import to avoid circular import)
+# Include routes from routes package (lazy import to avoid circular import)
 def _register_routes():
     """Lazy import routes to avoid circular import"""
-    from routes import router
+    from routes.routes import router
+    from routes.routes_analysis import router as analysis_router
     app.include_router(router)
+    app.include_router(analysis_router)
 
 _register_routes()
 

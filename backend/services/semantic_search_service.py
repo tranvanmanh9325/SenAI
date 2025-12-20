@@ -9,7 +9,7 @@ import numpy as np
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from embedding_service import embedding_service # type: ignore
+from .embedding_service import embedding_service
 
 logger = logging.getLogger(__name__)
 

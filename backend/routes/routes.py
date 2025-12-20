@@ -4,16 +4,16 @@ from typing import Optional, List
 import logging
 
 # Import services
-from llm_service import llm_service # pyright: ignore[reportMissingImports]
-from fine_tuning_service import FineTuningService # type: ignore
-from pattern_analysis_service import PatternAnalysisService # type: ignore
-from semantic_search_service import SemanticSearchService
+from services.llm_service import llm_service
+from services.fine_tuning_service import FineTuningService
+from services.pattern_analysis_service import PatternAnalysisService
+from services.semantic_search_service import SemanticSearchService
 
 # Import authentication
-from auth import verify_api_key # type: ignore
+from middleware.auth import verify_api_key
 
 # Import rate limiting
-from rate_limit import limiter_with_api_key, STRICT_RATE_LIMIT, DEFAULT_RATE_LIMIT # type: ignore
+from middleware.rate_limit import limiter_with_api_key, STRICT_RATE_LIMIT, DEFAULT_RATE_LIMIT
 
 # Create router first
 router = APIRouter()
@@ -103,9 +103,16 @@ async def index_conversation_background(
     """
     try:
         # Tạo database session mới cho background task
+        import sys
+        import os
+        # Add parent directory to path để import app
+        parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
         from app import SessionLocal
         db = SessionLocal()
         try:
+            from services.semantic_search_service import SemanticSearchService
             semantic_service = SemanticSearchService(db)
             indexing_result = await semantic_service.index_conversation(
                 conversation_id=conversation_id,

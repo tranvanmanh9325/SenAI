@@ -75,4 +75,3 @@ async def optional_api_key(api_key: Optional[str] = Security(api_key_header)) ->
         return api_key
     
     return None
-
