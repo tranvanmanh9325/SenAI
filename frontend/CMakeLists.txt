@@ -32,6 +32,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ole32
     uxtheme
     dwmapi
+    gdiplus
 )
 
 # Include directories

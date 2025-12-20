@@ -14,14 +14,19 @@ void MainWindow::OnPaint() {
     GetClientRect(hwnd_, &clientRect);
     FillRect(hdc, &clientRect, hDarkBrush_);
     
-    // Draw title text
-    SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(255, 255, 255));
-    SelectObject(hdc, hTitleFont_);
-    
-    const wchar_t* titleText = L"Hôm nay bạn có ý tưởng gì?";
-    RECT titleRect = {0, windowHeight_ / 2 - 150, windowWidth_, windowHeight_ / 2 - 100};
-    DrawTextW(hdc, titleText, -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    // Draw chat messages if any exist
+    if (!messages_.empty()) {
+        DrawChatMessages(hdc);
+    } else {
+        // Draw title text only when no messages
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, RGB(255, 255, 255));
+        SelectObject(hdc, hTitleFont_);
+        
+        const wchar_t* titleText = L"Hôm nay bạn có ý tưởng gì?";
+        RECT titleRect = {0, windowHeight_ / 2 - 150, windowWidth_, windowHeight_ / 2 - 100};
+        DrawTextW(hdc, titleText, -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    }
     
     // Draw input field
     DrawInputField(hdc);
@@ -69,6 +74,128 @@ void MainWindow::DrawInputField(HDC hdc) {
     SelectObject(hdc, oldPen);
 }
 
+void MainWindow::DrawChatMessages(HDC hdc) {
+    RECT clientRect;
+    GetClientRect(hwnd_, &clientRect);
+    
+    // Calculate available area for messages (above input field)
+    int inputHeight = 60;
+    int marginBottom = 20; // Space between messages and input
+    int messageAreaTop = 20;
+    int messageAreaBottom = clientRect.bottom - inputHeight - marginBottom;
+    
+    // Message styling constants
+    int messageMarginX = 40; // Horizontal margin from window edges
+    int messageMarginY = 12; // Vertical spacing between messages
+    int bubblePaddingX = 16; // Horizontal padding inside bubble
+    int bubblePaddingY = 12; // Vertical padding inside bubble
+    int bubbleRadius = 20; // Rounded corner radius
+    int maxBubbleWidth = (int)((windowWidth_ - 2 * messageMarginX) * 0.7); // Max 70% of available width
+    
+    // Font for messages
+    HFONT hMessageFont = CreateFontW(-18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    HGDIOBJ oldFont = SelectObject(hdc, hMessageFont);
+    
+    SetBkMode(hdc, TRANSPARENT);
+    
+    // Calculate total height needed for all messages
+    int totalHeight = 0;
+    for (const auto& msg : messages_) {
+        RECT textRect = {0, 0, maxBubbleWidth - 2 * bubblePaddingX, 0};
+        DrawTextW(hdc, msg.text.c_str(), -1, &textRect, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
+        totalHeight += textRect.bottom + 2 * bubblePaddingY + messageMarginY;
+    }
+    
+    // Auto-scroll to bottom (show latest messages)
+    int availableHeight = messageAreaBottom - messageAreaTop;
+    if (totalHeight > availableHeight) {
+        scrollOffset_ = totalHeight - availableHeight;
+    } else {
+        scrollOffset_ = 0;
+    }
+    
+    int currentY = messageAreaTop - scrollOffset_;
+    
+    // Draw messages from oldest to newest
+    for (const auto& msg : messages_) {
+        if (currentY > messageAreaBottom) break; // Skip messages below visible area
+        if (currentY + 50 < messageAreaTop) { // Skip messages above visible area
+            // Estimate height and continue
+            RECT testRect = {0, 0, maxBubbleWidth - 2 * bubblePaddingX, 0};
+            DrawTextW(hdc, msg.text.c_str(), -1, &testRect, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
+            currentY += testRect.bottom + 2 * bubblePaddingY + messageMarginY;
+            continue;
+        }
+        
+        // Calculate text size
+        RECT textRect = {0, 0, maxBubbleWidth - 2 * bubblePaddingX, 0};
+        DrawTextW(hdc, msg.text.c_str(), -1, &textRect, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
+        int textWidth = textRect.right;
+        int textHeight = textRect.bottom;
+        
+        int bubbleWidth = textWidth + 2 * bubblePaddingX;
+        int bubbleHeight = textHeight + 2 * bubblePaddingY;
+        
+        RECT bubbleRect;
+        
+        if (msg.isUser) {
+            // User message: right-aligned, in dark grey bubble
+            bubbleRect.left = windowWidth_ - messageMarginX - bubbleWidth;
+            bubbleRect.right = windowWidth_ - messageMarginX;
+            bubbleRect.top = currentY;
+            bubbleRect.bottom = currentY + bubbleHeight;
+            
+            // Draw rounded rectangle bubble
+            HBRUSH bubbleBrush = CreateSolidBrush(RGB(50, 50, 50)); // Dark grey bubble
+            HPEN bubblePen = CreatePen(PS_SOLID, 1, RGB(50, 50, 50));
+            HGDIOBJ oldBrush = SelectObject(hdc, bubbleBrush);
+            HGDIOBJ oldPen = SelectObject(hdc, bubblePen);
+            
+            RoundRect(hdc, bubbleRect.left, bubbleRect.top, bubbleRect.right, bubbleRect.bottom, 
+                     bubbleRadius, bubbleRadius);
+            
+            SelectObject(hdc, oldBrush);
+            SelectObject(hdc, oldPen);
+            DeleteObject(bubbleBrush);
+            DeleteObject(bubblePen);
+            
+            // Draw text in white
+            SetTextColor(hdc, RGB(255, 255, 255));
+            RECT textDrawRect = bubbleRect;
+            textDrawRect.left += bubblePaddingX;
+            textDrawRect.right -= bubblePaddingX;
+            textDrawRect.top += bubblePaddingY;
+            textDrawRect.bottom -= bubblePaddingY;
+            DrawTextW(hdc, msg.text.c_str(), -1, &textDrawRect, DT_LEFT | DT_WORDBREAK);
+        } else {
+            // AI message: left-aligned, plain white text (no bubble)
+            // Allow wider text for AI messages
+            RECT aiTextRect = {0, 0, windowWidth_ - 2 * messageMarginX, 0};
+            DrawTextW(hdc, msg.text.c_str(), -1, &aiTextRect, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
+            int aiTextWidth = aiTextRect.right;
+            int aiTextHeight = aiTextRect.bottom;
+            
+            bubbleRect.left = messageMarginX;
+            bubbleRect.right = messageMarginX + aiTextWidth;
+            bubbleRect.top = currentY;
+            bubbleRect.bottom = currentY + aiTextHeight;
+            
+            // Draw text in white (no bubble)
+            SetTextColor(hdc, RGB(255, 255, 255));
+            RECT textDrawRect = bubbleRect;
+            DrawTextW(hdc, msg.text.c_str(), -1, &textDrawRect, DT_LEFT | DT_WORDBREAK);
+            bubbleHeight = aiTextHeight;
+        }
+        
+        currentY += bubbleHeight + messageMarginY;
+    }
+    
+    SelectObject(hdc, oldFont);
+    DeleteObject(hMessageFont);
+}
+
 void MainWindow::DrawSendButton(HDC hdc, const RECT& rc) {
     // Ensure square region (circle)
     int size = (std::min)(rc.right - rc.left, rc.bottom - rc.top);
@@ -80,25 +207,90 @@ void MainWindow::DrawSendButton(HDC hdc, const RECT& rc) {
     circleRect.right  = cx + size / 2;
     circleRect.bottom = cy + size / 2;
 
-    // Background (circle)
-    HBRUSH brush = CreateSolidBrush(RGB(255, 255, 255)); // white circle like screenshot
-    HPEN pen = CreatePen(PS_SOLID, 1, RGB(200, 200, 200));
-    HGDIOBJ oldBrush = SelectObject(hdc, brush);
-    HGDIOBJ oldPen = SelectObject(hdc, pen);
-    Ellipse(hdc, circleRect.left, circleRect.top, circleRect.right, circleRect.bottom);
-
-    // Draw arrow in the center
-    SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(0, 0, 0));
-    HFONT oldFont = (HFONT)SelectObject(hdc, hInputFont_);
-    DrawTextW(hdc, L"↑", -1, &circleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-    // Cleanup
-    SelectObject(hdc, oldFont);
-    SelectObject(hdc, oldBrush);
-    SelectObject(hdc, oldPen);
+    // Use high-resolution rendering (3x) for smooth anti-aliasing
+    const int scale = 3;
+    int highResSize = size * scale;
+    
+    // Create high-resolution memory DC for smooth rendering
+    HDC hdcMem = CreateCompatibleDC(hdc);
+    HBITMAP hbmMem = CreateCompatibleBitmap(hdc, highResSize, highResSize);
+    HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
+    
+    // Fill background with dark color to match window
+    RECT memRect = {0, 0, highResSize, highResSize};
+    HBRUSH bgBrush = CreateSolidBrush(RGB(18, 18, 18));
+    FillRect(hdcMem, &memRect, bgBrush);
+    DeleteObject(bgBrush);
+    
+    // Enable high-quality rendering
+    SetGraphicsMode(hdcMem, GM_ADVANCED);
+    SetBkMode(hdcMem, TRANSPARENT);
+    
+    // Draw white circle with no border - perfectly smooth
+    HBRUSH brush = CreateSolidBrush(RGB(255, 255, 255));
+    HPEN pen = CreatePen(PS_NULL, 0, RGB(255, 255, 255)); // No visible border
+    HGDIOBJ oldBrush = SelectObject(hdcMem, brush);
+    HGDIOBJ oldPen = SelectObject(hdcMem, pen);
+    
+    // Draw circle at high resolution
+    Ellipse(hdcMem, 0, 0, highResSize, highResSize);
+    
+    // Draw smooth arrow using polygon
+    int arrowSize = (int)(highResSize * 0.35);
+    int centerX = highResSize / 2;
+    int centerY = highResSize / 2;
+    
+    // Create arrow as a filled polygon (pointing up)
+    POINT arrowPoints[7];
+    int arrowWidth = (int)(arrowSize * 0.6);
+    int arrowHeight = arrowSize;
+    
+    // Arrow shape: triangle head + rectangular shaft
+    arrowPoints[0].x = centerX;
+    arrowPoints[0].y = centerY - arrowHeight / 2;
+    arrowPoints[1].x = centerX - arrowWidth / 2;
+    arrowPoints[1].y = centerY - arrowHeight / 2 + (int)(arrowHeight * 0.4);
+    arrowPoints[2].x = centerX - (int)(arrowWidth * 0.25);
+    arrowPoints[2].y = centerY - arrowHeight / 2 + (int)(arrowHeight * 0.4);
+    arrowPoints[3].x = centerX - (int)(arrowWidth * 0.25);
+    arrowPoints[3].y = centerY + arrowHeight / 2;
+    arrowPoints[4].x = centerX + (int)(arrowWidth * 0.25);
+    arrowPoints[4].y = centerY + arrowHeight / 2;
+    arrowPoints[5].x = centerX + (int)(arrowWidth * 0.25);
+    arrowPoints[5].y = centerY - arrowHeight / 2 + (int)(arrowHeight * 0.4);
+    arrowPoints[6].x = centerX + arrowWidth / 2;
+    arrowPoints[6].y = centerY - arrowHeight / 2 + (int)(arrowHeight * 0.4);
+    
+    // Draw dark arrow
+    HBRUSH arrowBrush = CreateSolidBrush(RGB(0, 0, 0));
+    HPEN arrowPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
+    HGDIOBJ oldArrowBrush = SelectObject(hdcMem, arrowBrush);
+    HGDIOBJ oldArrowPen = SelectObject(hdcMem, arrowPen);
+    
+    Polygon(hdcMem, arrowPoints, 7);
+    
+    // Cleanup arrow objects
+    SelectObject(hdcMem, oldArrowBrush);
+    SelectObject(hdcMem, oldArrowPen);
+    DeleteObject(arrowBrush);
+    DeleteObject(arrowPen);
+    
+    // Cleanup circle objects
+    SelectObject(hdcMem, oldBrush);
+    SelectObject(hdcMem, oldPen);
     DeleteObject(brush);
     DeleteObject(pen);
+    
+    // Scale down with high-quality interpolation for smooth anti-aliasing
+    SetStretchBltMode(hdc, HALFTONE);
+    SetBrushOrgEx(hdc, 0, 0, NULL);
+    StretchBlt(hdc, circleRect.left, circleRect.top, size, size,
+               hdcMem, 0, 0, highResSize, highResSize, SRCCOPY);
+    
+    // Cleanup memory DC
+    SelectObject(hdcMem, hbmOld);
+    DeleteObject(hbmMem);
+    DeleteDC(hdcMem);
 }
 
 void MainWindow::OnSize() {
@@ -107,11 +299,11 @@ void MainWindow::OnSize() {
     windowWidth_ = clientRect.right - clientRect.left;
     windowHeight_ = clientRect.bottom - clientRect.top;
     
-    // Recalculate input field position (keep centered)
+    // Recalculate input field position (at bottom)
     int inputWidth = windowWidth_ * 0.7;
     int inputHeight = 60;
     int inputX = (windowWidth_ - inputWidth) / 2;
-    int inputY = (windowHeight_ - inputHeight) / 2;
+    int inputY = windowHeight_ - inputHeight - 20; // 20px from bottom
     
     inputRect_.left = inputX;
     inputRect_.top = inputY;
@@ -169,12 +361,11 @@ void MainWindow::OnCreate() {
     int width = clientRect.right - clientRect.left;
     int height = clientRect.bottom - clientRect.top;
     
-    // Calculate input field position (centered)
+    // Calculate input field position (at bottom)
     int inputWidth = width * 0.7; // 70% of window width
     int inputHeight = 60;
     int inputX = (width - inputWidth) / 2;
-    // Center vertically
-    int inputY = (height - inputHeight) / 2;
+    int inputY = height - inputHeight - 20; // 20px from bottom
     
     inputRect_.left = inputX;
     inputRect_.top = inputY;
@@ -209,6 +400,11 @@ void MainWindow::OnCreate() {
     
     // Set font and colors
     SendMessage(hChatInput_, WM_SETFONT, (WPARAM)hInputFont_, TRUE);
+    
+    // Subclass edit control to handle Ctrl+A
+    if (hChatInput_) {
+        originalEditProc_ = (WNDPROC)SetWindowLongPtrW(hChatInput_, GWLP_WNDPROC, (LONG_PTR)EditProc);
+    }
     
     // Create hidden chat history for storing messages
     hChatHistory_ = CreateWindowW(L"EDIT", L"",

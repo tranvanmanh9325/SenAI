@@ -36,7 +36,8 @@ MainWindow::MainWindow()
       hDarkBrush_(NULL), hInputBrush_(NULL), hInputPen_(NULL),
       hTitleFont_(NULL), hInputFont_(NULL),
       windowWidth_(900), windowHeight_(700), showPlaceholder_(true),
-      hChatInput_(NULL), hChatHistory_(NULL), hSendButton_(NULL) {
+      hChatInput_(NULL), hChatHistory_(NULL), hSendButton_(NULL),
+      originalEditProc_(NULL), scrollOffset_(0) {
     // Generate session ID
     sessionId_ = "session_" + std::to_string(GetTickCount());
     
@@ -162,6 +163,30 @@ LRESULT CALLBACK MainWindow::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
     return DefWindowProcW(hwnd, uMsg, wParam, lParam);
 }
 
+LRESULT CALLBACK MainWindow::EditProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    MainWindow* pThis = (MainWindow*)GetWindowLongPtr(GetParent(hwnd), GWLP_USERDATA);
+    
+    if (uMsg == WM_KEYDOWN) {
+        // Handle Ctrl+A to select all text
+        if (wParam == 'A' && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            SendMessageW(hwnd, EM_SETSEL, 0, -1);
+            return 0;
+        }
+        // Handle Enter to send message
+        if (wParam == VK_RETURN && pThis) {
+            pThis->SendChatMessage();
+            return 0;
+        }
+    }
+    
+    // Call original window procedure
+    if (pThis && pThis->originalEditProc_) {
+        return CallWindowProcW(pThis->originalEditProc_, hwnd, uMsg, wParam, lParam);
+    }
+    
+    return DefWindowProcW(hwnd, uMsg, wParam, lParam);
+}
+
 LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
         case WM_CREATE:
@@ -269,14 +294,23 @@ void MainWindow::SendChatMessage() {
     showPlaceholder_ = true;
     InvalidateRect(hwnd_, &inputRect_, FALSE);
     
+    // Add user message to vector
+    ChatMessage userMsg;
+    userMsg.text = wmessage;
+    userMsg.isUser = true;
+    messages_.push_back(userMsg);
+    
     // Send message to backend
     std::string response = httpClient_.sendMessage(message, sessionId_);
     
-    // Append to history (display using Unicode)
-    std::wstring historyUser = L"Bạn: " + wmessage + L"\r\n";
-    std::wstring historyAi = L"AI: " + Utf8ToWide(response) + L"\r\n\r\n";
-    AppendTextToEdit(hChatHistory_, historyUser);
-    AppendTextToEdit(hChatHistory_, historyAi);
+    // Add AI response to vector
+    ChatMessage aiMsg;
+    aiMsg.text = Utf8ToWide(response);
+    aiMsg.isUser = false;
+    messages_.push_back(aiMsg);
+    
+    // Redraw window to show new messages
+    InvalidateRect(hwnd_, NULL, TRUE);
 }
 
 void MainWindow::RefreshConversations() {

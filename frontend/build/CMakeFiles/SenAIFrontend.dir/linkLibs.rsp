@@ -1,1 +1,1 @@
- -lwininet -lcomctl32 -lole32 -luxtheme -ldwmapi -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 
+ -lwininet -lcomctl32 -lole32 -luxtheme -ldwmapi -lgdiplus -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 
