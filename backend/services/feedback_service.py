@@ -42,7 +42,7 @@ class FeedbackService:
         """
         try:
             # Kiểm tra conversation có tồn tại không
-            from app import AgentConversation
+            from models import AgentConversation
             conversation = self.db.query(AgentConversation).filter(
                 AgentConversation.id == conversation_id
             ).first()
@@ -54,7 +54,7 @@ class FeedbackService:
                 }
             
             # Kiểm tra đã có feedback chưa (có thể update)
-            from app import ConversationFeedback
+            from models import ConversationFeedback
             existing_feedback = self.db.query(ConversationFeedback).filter(
                 ConversationFeedback.conversation_id == conversation_id
             ).first()
@@ -219,7 +219,7 @@ class FeedbackService:
             List các feedback phù hợp cho training
         """
         try:
-            from app import ConversationFeedback, AgentConversation
+            from models import ConversationFeedback, AgentConversation
             
             # Lấy feedback có rating tốt hoặc có correction
             query = self.db.query(ConversationFeedback).join(
@@ -287,7 +287,7 @@ class FeedbackService:
             List conversations với feedback
         """
         try:
-            from app import ConversationFeedback, AgentConversation
+            from models import ConversationFeedback, AgentConversation
             
             query = self.db.query(
                 AgentConversation,

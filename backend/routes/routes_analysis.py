@@ -18,12 +18,14 @@ from middleware.rate_limit import limiter_with_api_key, STRICT_RATE_LIMIT, DEFAU
 # Create router
 router = APIRouter()
 
-# Import models and dependencies from app (after router creation to avoid circular import)
+# Import models from models.py to avoid circular imports
+from models import AgentConversation, ConversationFeedback, ConversationEmbedding
+
+# Import dependencies from app
 import app
 
 # Get references from app module
 get_db = app.get_db
-AgentConversation = app.AgentConversation
 FeedbackCreate = app.FeedbackCreate
 FeedbackStats = app.FeedbackStats
 
@@ -329,4 +331,3 @@ async def get_embedding_status(api_key: str = Depends(verify_api_key)):
     from services.embedding_service import embedding_service
     status = await embedding_service.check_embedding_service()
     return status
-

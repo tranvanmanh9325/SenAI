@@ -1,6 +1,7 @@
 """
 Embedding Service để generate và quản lý embeddings
 Hỗ trợ cả Ollama embeddings và sentence-transformers
+Có tích hợp Redis caching để tăng hiệu năng
 """
 import os
 import json
@@ -13,6 +14,24 @@ import httpx
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# Import cache service nếu có
+try:
+    from .cache_service import cache_service
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    cache_service = None
+    logger.warning("Cache service not available. Install redis package for caching support.")
+
+# Import metrics service nếu có
+try:
+    from .metrics_service import metrics_service
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    metrics_service = None
+    logger.warning("Metrics service not available.")
 
 class EmbeddingService:
     """Service để generate embeddings cho text"""
@@ -51,14 +70,16 @@ class EmbeddingService:
     async def generate_embedding(
         self,
         text: str,
-        text_type: str = "user_message"  # user_message, ai_response, combined
+        text_type: str = "user_message",  # user_message, ai_response, combined
+        use_cache: bool = True
     ) -> Optional[List[float]]:
         """
-        Generate embedding cho text
+        Generate embedding cho text với caching support
         
         Args:
             text: Text cần generate embedding
             text_type: Loại text (để optimize nếu cần)
+            use_cache: Có sử dụng cache không (default: True)
             
         Returns:
             List of floats (embedding vector) hoặc None nếu lỗi
@@ -66,12 +87,55 @@ class EmbeddingService:
         if not text or not text.strip():
             return None
         
+        import time
+        start_time = time.time()
+        
+        # Try to get from cache first
+        if use_cache and CACHE_AVAILABLE and cache_service and cache_service.enabled:
+            cached_embedding = cache_service.get_cached_embedding(text)
+            if cached_embedding:
+                logger.debug(f"Cache hit for embedding: {text[:50]}...")
+                if METRICS_AVAILABLE and metrics_service and metrics_service.enabled:
+                    metrics_service.record_cache_hit("embedding")
+                return cached_embedding
+        
+        if METRICS_AVAILABLE and metrics_service and metrics_service.enabled:
+            metrics_service.record_cache_miss("embedding")
+        
         try:
+            # Generate embedding
             if self.embedding_provider == "ollama":
-                return await self._generate_ollama_embedding(text)
+                embedding = await self._generate_ollama_embedding(text)
             else:
-                return self._generate_sentence_embedding(text)
+                embedding = self._generate_sentence_embedding(text)
+            
+            # Record metrics
+            duration = time.time() - start_time
+            if METRICS_AVAILABLE and metrics_service and metrics_service.enabled:
+                metrics_service.record_embedding_request(
+                    provider=self.embedding_provider,
+                    status="success" if embedding else "error",
+                    duration=duration
+                )
+            
+            # Cache the result
+            if embedding and use_cache and CACHE_AVAILABLE and cache_service and cache_service.enabled:
+                cache_service.cache_embedding(text, embedding)
+                logger.debug(f"Cached embedding: {text[:50]}...")
+            
+            return embedding
         except Exception as e:
+            duration = time.time() - start_time
+            if METRICS_AVAILABLE and metrics_service and metrics_service.enabled:
+                metrics_service.record_embedding_request(
+                    provider=self.embedding_provider,
+                    status="error",
+                    duration=duration
+                )
+                metrics_service.record_error(
+                    error_type=type(e).__name__,
+                    service="embedding"
+                )
             logger.error(f"Error generating embedding: {e}")
             return None
     

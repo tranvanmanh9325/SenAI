@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, text
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional, List, Dict
@@ -15,6 +15,10 @@ from dotenv import load_dotenv
 from middleware.rate_limit import limiter, limiter_with_api_key, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+# Import metrics
+from middleware.metrics_middleware import MetricsMiddleware
+from services.metrics_service import metrics_service, get_metrics_export
+
 # Import LLM and Fine-tuning services
 from services.llm_service import llm_service
 from services.fine_tuning_service import FineTuningService
@@ -22,6 +26,17 @@ from services.feedback_service import FeedbackService
 
 # Load environment variables
 load_dotenv()
+
+# Check if pgvector is available
+USE_PGVECTOR = os.getenv("USE_PGVECTOR", "false").lower() == "true"
+try:
+    from pgvector.sqlalchemy import Vector
+    PGVECTOR_AVAILABLE = True
+except ImportError:
+    PGVECTOR_AVAILABLE = False
+    Vector = None
+    if USE_PGVECTOR:
+        logging.warning("pgvector not installed. Install with: pip install pgvector. Falling back to JSON text storage.")
 
 # CORS configuration
 # Cho phép cấu hình CORS origins qua biến môi trường
@@ -82,8 +97,40 @@ def sanitize_database_url(url: str) -> str:
         return url.split("@")[0] + "@***" if "@" in url else "***"
 
 
-# Logging: keep output minimal, silence noisy SQL logs
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+# Logging: structured logging với JSON format (nếu cần)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_FORMAT = os.getenv("LOG_FORMAT", "standard")  # standard hoặc json
+
+if LOG_FORMAT == "json":
+    import json
+    from datetime import datetime
+    
+    class JSONFormatter(logging.Formatter):
+        def format(self, record):
+            log_data = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "level": record.levelname,
+                "logger": record.name,
+                "message": record.getMessage(),
+                "module": record.module,
+                "function": record.funcName,
+                "line": record.lineno
+            }
+            if record.exc_info:
+                log_data["exception"] = self.formatException(record.exc_info)
+            return json.dumps(log_data)
+    
+    handler = logging.StreamHandler()
+    handler.setFormatter(JSONFormatter())
+    logging.basicConfig(level=getattr(logging, LOG_LEVEL), handlers=[handler])
+else:
+    # Standard logging format
+    logging.basicConfig(
+        level=getattr(logging, LOG_LEVEL),
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
 # Create database engine với connection pooling configuration
@@ -102,55 +149,8 @@ engine = create_engine(
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base class for models
-Base = declarative_base()
-
-# Database Models
-class AgentTask(Base):
-    __tablename__ = "agent_tasks"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    task_name = Column(String(255), nullable=False)
-    description = Column(Text)
-    status = Column(String(50), default="pending")
-    result = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-class AgentConversation(Base):
-    __tablename__ = "agent_conversations"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_message = Column(Text, nullable=False)
-    ai_response = Column(Text)
-    session_id = Column(String(255))
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class ConversationFeedback(Base):
-    __tablename__ = "conversation_feedback"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, nullable=False, index=True)
-    rating = Column(Integer, nullable=False)  # 1-5 stars, hoặc -1 (thumbs down), 1 (thumbs up)
-    feedback_type = Column(String(50), default="rating")  # rating, thumbs_up, thumbs_down, detailed
-    comment = Column(Text)  # Comment chi tiết từ user
-    user_correction = Column(Text)  # Câu trả lời đúng nếu user sửa
-    is_helpful = Column(String(10))  # yes, no, partially
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-class ConversationEmbedding(Base):
-    __tablename__ = "conversation_embeddings"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, nullable=False, unique=True, index=True)
-    user_message_embedding = Column(Text)  # JSON array của embedding vector
-    ai_response_embedding = Column(Text)  # JSON array của embedding vector
-    combined_embedding = Column(Text)  # JSON array của combined embedding
-    embedding_model = Column(String(100), default="sentence-transformers")  # Model đã dùng
-    embedding_dimension = Column(Integer, default=384)  # Dimension của embedding
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+# Import models from models.py to avoid circular imports
+from models import Base, AgentTask, AgentConversation, ConversationFeedback, ConversationEmbedding
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -266,6 +266,9 @@ app = FastAPI(
 app.state.limiter = limiter_with_api_key
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
+# Metrics middleware (add before CORS to track all requests)
+app.add_middleware(MetricsMiddleware)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -282,6 +285,21 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Metrics endpoint for Prometheus
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint"""
+    try:
+        metrics_data, content_type = get_metrics_export()
+        if metrics_data:
+            from fastapi.responses import Response
+            return Response(content=metrics_data, media_type=content_type)
+        else:
+            return {"message": "Metrics not available"}
+    except Exception as e:
+        logging.error(f"Error generating metrics: {e}")
+        return {"error": "Failed to generate metrics"}
 
 # Health check endpoint
 @app.get("/")

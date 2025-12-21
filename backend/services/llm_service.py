@@ -1,16 +1,42 @@
 """
 LLM Service để tích hợp với llama3.1 qua Ollama API
 Hỗ trợ cả local Ollama và các LLM API khác
+Có tích hợp Redis caching để tăng hiệu năng
 """
 import os
 import httpx
 import logging
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    retry_if_exception
+)
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# Import cache service nếu có
+try:
+    from .cache_service import cache_service
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    cache_service = None
+    logger.warning("Cache service not available. Install redis package for caching support.")
+
+# Import metrics service nếu có
+try:
+    from .metrics_service import metrics_service
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    metrics_service = None
+    logger.warning("Metrics service not available.")
 
 class LLMService:
     """Service để tương tác với LLM (llama3.1 qua Ollama)"""
@@ -35,10 +61,11 @@ class LLMService:
         conversation_history: Optional[List[Dict[str, str]]] = None,
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        use_cache: bool = True
     ) -> str:
         """
-        Generate AI response từ user message
+        Generate AI response từ user message với caching support
         
         Args:
             user_message: Tin nhắn từ user
@@ -46,13 +73,33 @@ class LLMService:
             system_prompt: System prompt tùy chỉnh
             temperature: Độ sáng tạo (0.0-1.0)
             max_tokens: Số token tối đa
+            use_cache: Có sử dụng cache không (default: True)
             
         Returns:
             AI response string
         """
+        import time
+        start_time = time.time()
+        
+        # Try to get from cache first (only if no conversation history for simplicity)
+        if use_cache and CACHE_AVAILABLE and cache_service and cache_service.enabled:
+            # Only cache simple requests without conversation history
+            if not conversation_history or len(conversation_history) == 0:
+                cached_response = cache_service.get_cached_llm_response(
+                    user_message, conversation_history, system_prompt, temperature
+                )
+                if cached_response:
+                    logger.debug(f"Cache hit for LLM response: {user_message[:50]}...")
+                    if METRICS_AVAILABLE and metrics_service and metrics_service.enabled:
+                        metrics_service.record_cache_hit("llm")
+                    return cached_response
+        
+        if METRICS_AVAILABLE and metrics_service and metrics_service.enabled:
+            metrics_service.record_cache_miss("llm")
+        
         try:
             if self.provider == "ollama":
-                return await self._generate_ollama(
+                response = await self._generate_ollama(
                     user_message, 
                     conversation_history, 
                     system_prompt,
@@ -60,7 +107,7 @@ class LLMService:
                     max_tokens
                 )
             elif self.provider == "openai":
-                return await self._generate_openai(
+                response = await self._generate_openai(
                     user_message,
                     conversation_history,
                     system_prompt,
@@ -68,7 +115,7 @@ class LLMService:
                     max_tokens
                 )
             elif self.provider == "anthropic":
-                return await self._generate_anthropic(
+                response = await self._generate_anthropic(
                     user_message,
                     conversation_history,
                     system_prompt,
@@ -77,10 +124,85 @@ class LLMService:
                 )
             else:
                 raise ValueError(f"Unknown LLM provider: {self.provider}")
+            
+            # Record metrics
+            duration = time.time() - start_time
+            if METRICS_AVAILABLE and metrics_service and metrics_service.enabled:
+                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+                input_tokens = len(user_message) // 4
+                if conversation_history:
+                    input_tokens += sum(len(str(msg.get("content", ""))) for msg in conversation_history) // 4
+                output_tokens = len(response) // 4 if response else 0
+                
+                metrics_service.record_llm_request(
+                    provider=self.provider,
+                    status="success",
+                    duration=duration,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens
+                )
+            
+            # Cache the response (only if no conversation history)
+            if response and use_cache and CACHE_AVAILABLE and cache_service and cache_service.enabled:
+                if not conversation_history or len(conversation_history) == 0:
+                    cache_service.cache_llm_response(
+                        user_message, response, conversation_history, system_prompt, temperature
+                    )
+                    logger.debug(f"Cached LLM response: {user_message[:50]}...")
+            
+            return response
+        except (httpx.ConnectError, httpx.TimeoutException) as e:
+            duration = time.time() - start_time
+            if METRICS_AVAILABLE and metrics_service and metrics_service.enabled:
+                metrics_service.record_llm_request(
+                    provider=self.provider,
+                    status="connection_error",
+                    duration=duration
+                )
+                metrics_service.record_error(
+                    error_type=type(e).__name__,
+                    service="llm"
+                )
+            logger.error(f"Connection error after retries: {e}")
+            if self.provider == "ollama":
+                return "Không thể kết nối đến Ollama server sau nhiều lần thử. Vui lòng kiểm tra Ollama đã chạy chưa."
+            else:
+                return f"Không thể kết nối đến {self.provider} API. Vui lòng thử lại sau."
+        except httpx.HTTPStatusError as e:
+            duration = time.time() - start_time
+            if METRICS_AVAILABLE and metrics_service and metrics_service.enabled:
+                metrics_service.record_llm_request(
+                    provider=self.provider,
+                    status="http_error",
+                    duration=duration
+                )
+                metrics_service.record_error(
+                    error_type=type(e).__name__,
+                    service="llm"
+                )
+            logger.error(f"HTTP error after retries: {e}")
+            return f"Lỗi từ {self.provider} API: {e.response.status_code}. Vui lòng thử lại sau."
         except Exception as e:
+            duration = time.time() - start_time
+            if METRICS_AVAILABLE and metrics_service and metrics_service.enabled:
+                metrics_service.record_llm_request(
+                    provider=self.provider,
+                    status="error",
+                    duration=duration
+                )
+                metrics_service.record_error(
+                    error_type=type(e).__name__,
+                    service="llm"
+                )
             logger.error(f"Error generating response: {e}")
             return f"Xin lỗi, đã xảy ra lỗi khi tạo phản hồi: {str(e)}"
     
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError)),
+        reraise=True
+    )
     async def _generate_ollama(
         self,
         user_message: str,
@@ -89,7 +211,7 @@ class LLMService:
         temperature: float,
         max_tokens: Optional[int]
     ) -> str:
-        """Generate response qua Ollama API"""
+        """Generate response qua Ollama API với retry logic"""
         url = f"{self.ollama_base_url}/api/generate"
         
         # Build messages
@@ -134,25 +256,24 @@ class LLMService:
                 payload["options"]["num_predict"] = max_tokens
         
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                data = response.json()
-                
-                # Ollama response format
-                if "response" in data:
-                    return data["response"]
-                elif "message" in data and "content" in data["message"]:
-                    return data["message"]["content"]
-                else:
-                    return str(data)
-            except httpx.ConnectError:
-                logger.error(f"Cannot connect to Ollama at {self.ollama_base_url}")
-                return "Không thể kết nối đến Ollama server. Vui lòng kiểm tra Ollama đã chạy chưa."
-            except httpx.TimeoutException:
-                logger.error("Ollama request timeout")
-                return "Request timeout. Model có thể đang xử lý, vui lòng thử lại."
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Ollama response format
+            if "response" in data:
+                return data["response"]
+            elif "message" in data and "content" in data["message"]:
+                return data["message"]["content"]
+            else:
+                return str(data)
     
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError)),
+        reraise=True
+    )
     async def _generate_openai(
         self,
         user_message: str,
@@ -161,7 +282,7 @@ class LLMService:
         temperature: float,
         max_tokens: Optional[int]
     ) -> str:
-        """Generate response qua OpenAI API"""
+        """Generate response qua OpenAI API với retry logic"""
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY not set")
         
@@ -192,6 +313,12 @@ class LLMService:
             data = response.json()
             return data["choices"][0]["message"]["content"]
     
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError)),
+        reraise=True
+    )
     async def _generate_anthropic(
         self,
         user_message: str,
@@ -200,7 +327,7 @@ class LLMService:
         temperature: float,
         max_tokens: Optional[int]
     ) -> str:
-        """Generate response qua Anthropic API"""
+        """Generate response qua Anthropic API với retry logic"""
         if not self.anthropic_api_key:
             raise ValueError("ANTHROPIC_API_KEY not set")
         

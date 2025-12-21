@@ -18,14 +18,14 @@ from middleware.rate_limit import limiter_with_api_key, STRICT_RATE_LIMIT, DEFAU
 # Create router first
 router = APIRouter()
 
-# Import models and dependencies from app (after router creation to avoid circular import)
-# This will work because app.py imports routes at the end, after all models are defined
+# Import models from models.py to avoid circular imports
+from models import AgentTask, AgentConversation
+
+# Import dependencies from app
 import app
 
 # Get references from app module
 get_db = app.get_db
-AgentTask = app.AgentTask
-AgentConversation = app.AgentConversation
 TaskCreate = app.TaskCreate
 TaskResponse = app.TaskResponse
 ConversationCreate = app.ConversationCreate
@@ -109,7 +109,7 @@ async def index_conversation_background(
         parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         if parent_dir not in sys.path:
             sys.path.insert(0, parent_dir)
-        from app import SessionLocal
+        from app import SessionLocal  # SessionLocal is still in app.py
         db = SessionLocal()
         try:
             from services.semantic_search_service import SemanticSearchService

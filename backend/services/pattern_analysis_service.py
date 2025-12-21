@@ -1,6 +1,7 @@
 """
 Pattern Analysis Service để phân tích patterns từ conversations
 Phát hiện common questions, topics, intent và cải thiện responses
+Có tích hợp Redis caching để tăng hiệu năng
 """
 import logging
 import re
@@ -11,6 +12,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, func, and_
 
 logger = logging.getLogger(__name__)
+
+# Import cache service nếu có
+try:
+    from .cache_service import cache_service
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    cache_service = None
+    logger.warning("Cache service not available. Install redis package for caching support.")
 
 class PatternAnalysisService:
     """Service để phân tích patterns từ conversations"""
@@ -133,14 +143,7 @@ class PatternAnalysisService:
         """
         try:
             # Import models (lazy import để tránh circular import)
-            AgentConversation = None
-            ConversationFeedback = None
-            try:
-                import app
-                AgentConversation = app.AgentConversation
-                ConversationFeedback = app.ConversationFeedback
-            except:
-                pass
+            from models import AgentConversation, ConversationFeedback
             
             if not AgentConversation or not ConversationFeedback:
                 return {
@@ -267,7 +270,7 @@ class PatternAnalysisService:
             List conversations tương tự
         """
         try:
-            from app import AgentConversation, ConversationFeedback
+            from models import AgentConversation, ConversationFeedback
             
             # Lấy keywords từ user message
             query_keywords = set(self._extract_keywords(user_message.lower()))
@@ -378,13 +381,24 @@ class PatternAnalysisService:
                 "recommended_approach": None
             }
     
-    def get_pattern_insights(self) -> Dict[str, Any]:
+    def get_pattern_insights(self, session_id: Optional[str] = None, use_cache: bool = True) -> Dict[str, Any]:
         """
-        Tổng hợp insights từ tất cả patterns
+        Tổng hợp insights từ tất cả patterns với caching support
+        
+        Args:
+            session_id: Session ID để cache (optional)
+            use_cache: Có sử dụng cache không (default: True)
         
         Returns:
             Dict với tổng hợp insights
         """
+        # Try to get from cache first
+        if use_cache and session_id and CACHE_AVAILABLE and cache_service and cache_service.enabled:
+            cached_insights = cache_service.get_cached_pattern_analysis(session_id, limit=10)
+            if cached_insights:
+                logger.debug(f"Cache hit for pattern insights: session {session_id}")
+                return cached_insights
+        
         try:
             # Analyze all patterns
             common_questions = self.analyze_common_questions(min_frequency=2, limit=10)
@@ -397,7 +411,7 @@ class PatternAnalysisService:
                 text("SELECT COUNT(*) FROM agent_conversations")
             ).scalar() or 0
             
-            return {
+            insights = {
                 "total_conversations": total_convs,
                 "common_questions": common_questions,
                 "topics": topics,
@@ -411,6 +425,13 @@ class PatternAnalysisService:
                     "bad_response_count": response_patterns.get("bad_count", 0)
                 }
             }
+            
+            # Cache the result if session_id provided
+            if use_cache and session_id and CACHE_AVAILABLE and cache_service and cache_service.enabled:
+                cache_service.cache_pattern_analysis(session_id, insights, limit=10)
+                logger.debug(f"Cached pattern insights: session {session_id}")
+            
+            return insights
         except Exception as e:
             logger.error(f"Error getting pattern insights: {e}")
             return {
