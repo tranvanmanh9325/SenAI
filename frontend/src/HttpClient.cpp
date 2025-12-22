@@ -237,7 +237,7 @@ std::string HttpClient::extractJsonField(const std::string& json, const std::str
     // Improved JSON parser để extract field value
     // Tìm pattern: "fieldName": (có thể có khoảng trắng)
     std::string searchPattern = "\"" + fieldName + "\"";
-    size_t pos = json.find(searchPattern);
+   size_t pos = json.find(searchPattern);
     if (pos == std::string::npos) {
         return ""; // Field not found
     }

@@ -14,6 +14,7 @@ set(SOURCES
     src/main.cpp
     src/MainWindow.cpp
     src/MainWindowUI.cpp
+    src/MainWindowRender.cpp
     src/HttpClient.cpp
 )
 
@@ -33,6 +34,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     uxtheme
     dwmapi
     gdiplus
+    msimg32
 )
 
 # Include directories

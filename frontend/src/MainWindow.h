@@ -12,6 +12,7 @@
 struct ChatMessage {
     std::wstring text;
     bool isUser; // true for user messages, false for AI messages
+    std::wstring timestamp;
 };
 
 class MainWindow {

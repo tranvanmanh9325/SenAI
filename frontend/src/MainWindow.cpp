@@ -122,6 +122,14 @@ namespace {
 
         return "";
     }
+
+    std::wstring GetCurrentTimeW() {
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        wchar_t buf[16];
+        swprintf_s(buf, L"%02d:%02d", st.wHour, st.wMinute);
+        return std::wstring(buf);
+    }
 }
 
 #pragma comment(lib, "comctl32.lib")
@@ -191,10 +199,10 @@ bool MainWindow::Create(HINSTANCE hInstance) {
         }
     }
     
-    // Create brushes and pens for dark theme
-    hDarkBrush_ = CreateSolidBrush(RGB(18, 18, 18)); // Very dark gray
-    hInputBrush_ = CreateSolidBrush(RGB(30, 30, 30)); // Dark gray for input
-    hInputPen_ = CreatePen(PS_SOLID, 1, RGB(60, 60, 60)); // Border color
+    // Create brushes and pens for dark/futuristic theme
+    hDarkBrush_ = CreateSolidBrush(RGB(11, 16, 33)); // Deep navy background
+    hInputBrush_ = CreateSolidBrush(RGB(20, 26, 44)); // Dark glass base
+    hInputPen_ = CreatePen(PS_SOLID, 1, RGB(74, 215, 255)); // Cyan outline
     
     hwnd_ = CreateWindowExW(
         0, // Remove WS_EX_LAYERED for now
@@ -425,6 +433,7 @@ void MainWindow::SendChatMessage() {
     ChatMessage userMsg;
     userMsg.text = wmessage;
     userMsg.isUser = true;
+    userMsg.timestamp = GetCurrentTimeW();
     messages_.push_back(userMsg);
     
     // Send message to backend
@@ -434,6 +443,7 @@ void MainWindow::SendChatMessage() {
     ChatMessage aiMsg;
     aiMsg.text = Utf8ToWide(response);
     aiMsg.isUser = false;
+    aiMsg.timestamp = GetCurrentTimeW();
     messages_.push_back(aiMsg);
 
     // Sau khi đã có messages, khởi động animation đưa input xuống dưới

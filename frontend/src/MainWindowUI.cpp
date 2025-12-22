@@ -3,76 +3,7 @@
 #include <string>
 #include <algorithm>
 
-// UI Rendering and Layout functions for MainWindow
-
-void MainWindow::OnPaint() {
-    PAINTSTRUCT ps;
-    HDC hdc = BeginPaint(hwnd_, &ps);
-    
-    // Fill background with dark color
-    RECT clientRect;
-    GetClientRect(hwnd_, &clientRect);
-    FillRect(hdc, &clientRect, hDarkBrush_);
-    
-    // Draw chat messages if any exist
-    if (!messages_.empty()) {
-        DrawChatMessages(hdc);
-    } else {
-        // Draw title text only when no messages
-        SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, RGB(255, 255, 255));
-        SelectObject(hdc, hTitleFont_);
-        
-        const wchar_t* titleText = L"Hôm nay bạn có ý tưởng gì?";
-        RECT titleRect = {0, windowHeight_ / 2 - 150, windowWidth_, windowHeight_ / 2 - 100};
-        DrawTextW(hdc, titleText, -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    }
-    
-    // Draw input field
-    DrawInputField(hdc);
-    
-    EndPaint(hwnd_, &ps);
-}
-
-void MainWindow::OnEraseBkgnd(HDC hdc) {
-    RECT clientRect;
-    GetClientRect(hwnd_, &clientRect);
-    FillRect(hdc, &clientRect, hDarkBrush_);
-}
-
-void MainWindow::DrawInputField(HDC hdc) {
-    // Draw rounded rectangle for input field
-    HGDIOBJ oldBrush = SelectObject(hdc, hInputBrush_);
-    HGDIOBJ oldPen = SelectObject(hdc, hInputPen_);
-    
-    // Draw rounded rectangle (simplified as rectangle with rounded corners)
-    RoundRect(hdc, inputRect_.left, inputRect_.top, inputRect_.right, inputRect_.bottom, 30, 30);
-    
-    // Draw placeholder text if input is empty
-    if (showPlaceholder_) {
-        SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, RGB(150, 150, 150));
-        SelectObject(hdc, hInputFont_);
-
-        RECT textRect = inputRect_;
-        // Khớp với layout của Edit và nút gửi
-        int inputPaddingX = 50;
-        int buttonMarginRight = 12;
-        int gapTextToButton = 10;
-        int inputHeight = inputRect_.bottom - inputRect_.top;
-        int buttonSize = inputHeight - 16;
-        int buttonX = inputRect_.right - buttonMarginRight - buttonSize;
-
-        textRect.left = inputRect_.left + inputPaddingX + 3; // +3 để bù margin bên trong EDIT
-        textRect.right = buttonX - gapTextToButton;
-
-        const wchar_t* placeholder = L"Hỏi bất kỳ điều gì";
-        DrawTextW(hdc, placeholder, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    }
-    
-    SelectObject(hdc, oldBrush);
-    SelectObject(hdc, oldPen);
-}
+// UI layout & chat rendering (render primitives are defined in MainWindowRender.cpp)
 
 void MainWindow::DrawChatMessages(HDC hdc) {
     RECT clientRect;
@@ -81,19 +12,26 @@ void MainWindow::DrawChatMessages(HDC hdc) {
     // Calculate available area for messages (above input field)
     int inputHeight = 60;
     int marginBottom = 20; // Space between messages and input
-    int messageAreaTop = 20;
+    int headerH = 48;
+    int messageAreaTop = headerH + 20;
     int messageAreaBottom = clientRect.bottom - inputHeight - marginBottom;
     
     // Message styling constants
-    int messageMarginX = 40; // Horizontal margin from window edges
-    int messageMarginY = 12; // Vertical spacing between messages
-    int bubblePaddingX = 16; // Horizontal padding inside bubble
-    int bubblePaddingY = 12; // Vertical padding inside bubble
-    int bubbleRadius = 20; // Rounded corner radius
-    int maxBubbleWidth = (int)((windowWidth_ - 2 * messageMarginX) * 0.7); // Max 70% of available width
+    int messageMarginX = 36; // Horizontal margin from window edges
+    int messageMarginY = 16; // Vertical spacing between messages
+    int bubblePaddingX = 18; // Horizontal padding inside bubble
+    int bubblePaddingY = 14; // Vertical padding inside bubble
+    int bubbleRadius = 18; // Rounded corner radius
+    int maxBubbleWidth = (int)((windowWidth_ - 2 * messageMarginX) * 0.75); // Max 75% of available width
     
     // Font for messages
-    HFONT hMessageFont = CreateFontW(-18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT hMessageFont = CreateFontW(-22, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    HFONT hAIMessageFont = CreateFontW(-24, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    HFONT hMetaFont = CreateFontW(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
     HGDIOBJ oldFont = SelectObject(hdc, hMessageFont);
@@ -136,57 +74,118 @@ void MainWindow::DrawChatMessages(HDC hdc) {
         int textHeight = textRect.bottom;
         
         int bubbleWidth = textWidth + 2 * bubblePaddingX;
-        int bubbleHeight = textHeight + 2 * bubblePaddingY;
+        int bubbleHeight = textHeight + 2 * bubblePaddingY + 16; // space for timestamp
         
         RECT bubbleRect;
-        
+        RECT textDrawRect;
+
+        // Avatar circle
+        int avatarSize = 20;
+        int avatarMargin = 8;
+        int bubbleOffsetX = avatarSize + avatarMargin;
+
         if (msg.isUser) {
-            // User message: right-aligned, in dark grey bubble
             bubbleRect.left = windowWidth_ - messageMarginX - bubbleWidth;
             bubbleRect.right = windowWidth_ - messageMarginX;
             bubbleRect.top = currentY;
             bubbleRect.bottom = currentY + bubbleHeight;
-            
-            // Draw rounded rectangle bubble
-            HBRUSH bubbleBrush = CreateSolidBrush(RGB(50, 50, 50)); // Dark grey bubble
-            HPEN bubblePen = CreatePen(PS_SOLID, 1, RGB(50, 50, 50));
+
+            // Bubble colors
+            HBRUSH bubbleBrush = CreateSolidBrush(RGB(30, 37, 61));
+            HPEN bubblePen = CreatePen(PS_SOLID, 1, RGB(65, 78, 110));
             HGDIOBJ oldBrush = SelectObject(hdc, bubbleBrush);
             HGDIOBJ oldPen = SelectObject(hdc, bubblePen);
-            
             RoundRect(hdc, bubbleRect.left, bubbleRect.top, bubbleRect.right, bubbleRect.bottom, 
                      bubbleRadius, bubbleRadius);
-            
             SelectObject(hdc, oldBrush);
             SelectObject(hdc, oldPen);
             DeleteObject(bubbleBrush);
             DeleteObject(bubblePen);
-            
-            // Draw text in white
-            SetTextColor(hdc, RGB(255, 255, 255));
-            RECT textDrawRect = bubbleRect;
+
+            // Text
+            SetTextColor(hdc, RGB(236, 240, 255));
+            textDrawRect = bubbleRect;
             textDrawRect.left += bubblePaddingX;
             textDrawRect.right -= bubblePaddingX;
             textDrawRect.top += bubblePaddingY;
-            textDrawRect.bottom -= bubblePaddingY;
+            textDrawRect.bottom = textDrawRect.top + textHeight;
             DrawTextW(hdc, msg.text.c_str(), -1, &textDrawRect, DT_LEFT | DT_WORDBREAK);
+
+            // Timestamp
+            SelectObject(hdc, hMetaFont);
+            SetTextColor(hdc, RGB(154, 163, 195));
+            RECT metaRect = textDrawRect;
+            metaRect.top = textDrawRect.bottom + 4;
+            metaRect.bottom = bubbleRect.bottom - bubblePaddingY + 2;
+            DrawTextW(hdc, msg.timestamp.c_str(), -1, &metaRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+
+            // Avatar (right)
+            HBRUSH avatarBrush = CreateSolidBrush(RGB(74, 215, 255));
+            HPEN avatarPen = CreatePen(PS_NULL, 0, RGB(74, 215, 255));
+            oldBrush = SelectObject(hdc, avatarBrush);
+            oldPen = SelectObject(hdc, avatarPen);
+            int ax = bubbleRect.right + avatarMargin;
+            int ay = bubbleRect.top + 4;
+            Ellipse(hdc, ax, ay, ax + avatarSize, ay + avatarSize);
+            SelectObject(hdc, oldBrush);
+            SelectObject(hdc, oldPen);
+            DeleteObject(avatarBrush);
+            DeleteObject(avatarPen);
         } else {
-            // AI message: left-aligned, plain white text (no bubble)
-            // Allow wider text for AI messages
-            RECT aiTextRect = {0, 0, windowWidth_ - 2 * messageMarginX, 0};
+            // AI message: left-aligned glass bubble
+            SelectObject(hdc, hAIMessageFont);
+            RECT aiTextRect = {0, 0, maxBubbleWidth - 2 * bubblePaddingX, 0};
             DrawTextW(hdc, msg.text.c_str(), -1, &aiTextRect, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
-            int aiTextWidth = aiTextRect.right;
-            int aiTextHeight = aiTextRect.bottom;
-            
-            bubbleRect.left = messageMarginX;
-            bubbleRect.right = messageMarginX + aiTextWidth;
+            textWidth = aiTextRect.right;
+            textHeight = aiTextRect.bottom;
+            bubbleWidth = textWidth + 2 * bubblePaddingX;
+            bubbleHeight = textHeight + 2 * bubblePaddingY + 16;
+
+            bubbleRect.left = messageMarginX + bubbleOffsetX;
+            bubbleRect.right = bubbleRect.left + bubbleWidth;
             bubbleRect.top = currentY;
-            bubbleRect.bottom = currentY + aiTextHeight;
-            
-            // Draw text in white (no bubble)
-            SetTextColor(hdc, RGB(255, 255, 255));
-            RECT textDrawRect = bubbleRect;
+            bubbleRect.bottom = currentY + bubbleHeight;
+
+            HBRUSH bubbleBrush = CreateSolidBrush(RGB(24, 32, 48));
+            HPEN bubblePen = CreatePen(PS_SOLID, 1, RGB(74, 215, 255));
+            HGDIOBJ oldBrush = SelectObject(hdc, bubbleBrush);
+            HGDIOBJ oldPen = SelectObject(hdc, bubblePen);
+            RoundRect(hdc, bubbleRect.left, bubbleRect.top, bubbleRect.right, bubbleRect.bottom,
+                      bubbleRadius, bubbleRadius);
+            SelectObject(hdc, oldBrush);
+            SelectObject(hdc, oldPen);
+            DeleteObject(bubbleBrush);
+            DeleteObject(bubblePen);
+
+            // Avatar (left)
+            HBRUSH avatarBrush = CreateSolidBrush(RGB(154, 107, 255));
+            HPEN avatarPen = CreatePen(PS_NULL, 0, RGB(154, 107, 255));
+            oldBrush = SelectObject(hdc, avatarBrush);
+            oldPen = SelectObject(hdc, avatarPen);
+            int ax = messageMarginX;
+            int ay = bubbleRect.top + 4;
+            Ellipse(hdc, ax, ay, ax + avatarSize, ay + avatarSize);
+            SelectObject(hdc, oldBrush);
+            SelectObject(hdc, oldPen);
+            DeleteObject(avatarBrush);
+            DeleteObject(avatarPen);
+
+            // Text
+            SetTextColor(hdc, RGB(232, 236, 255));
+            textDrawRect = bubbleRect;
+            textDrawRect.left += bubblePaddingX;
+            textDrawRect.right -= bubblePaddingX;
+            textDrawRect.top += bubblePaddingY;
+            textDrawRect.bottom = textDrawRect.top + textHeight;
             DrawTextW(hdc, msg.text.c_str(), -1, &textDrawRect, DT_LEFT | DT_WORDBREAK);
-            bubbleHeight = aiTextHeight;
+
+            // Timestamp
+            SelectObject(hdc, hMetaFont);
+            SetTextColor(hdc, RGB(154, 163, 195));
+            RECT metaRect = textDrawRect;
+            metaRect.top = textDrawRect.bottom + 4;
+            metaRect.bottom = bubbleRect.bottom - bubblePaddingY + 2;
+            DrawTextW(hdc, msg.timestamp.c_str(), -1, &metaRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
         
         currentY += bubbleHeight + messageMarginY;
@@ -194,104 +193,10 @@ void MainWindow::DrawChatMessages(HDC hdc) {
     
     SelectObject(hdc, oldFont);
     DeleteObject(hMessageFont);
+    DeleteObject(hAIMessageFont);
+    DeleteObject(hMetaFont);
 }
 
-void MainWindow::DrawSendButton(HDC hdc, const RECT& rc) {
-    // Ensure square region (circle)
-    int size = (std::min)(rc.right - rc.left, rc.bottom - rc.top);
-    int cx = (rc.left + rc.right) / 2;
-    int cy = (rc.top + rc.bottom) / 2;
-    RECT circleRect;
-    circleRect.left   = cx - size / 2;
-    circleRect.top    = cy - size / 2;
-    circleRect.right  = cx + size / 2;
-    circleRect.bottom = cy + size / 2;
-
-    // Use high-resolution rendering (3x) for smooth anti-aliasing
-    const int scale = 3;
-    int highResSize = size * scale;
-    
-    // Create high-resolution memory DC for smooth rendering
-    HDC hdcMem = CreateCompatibleDC(hdc);
-    HBITMAP hbmMem = CreateCompatibleBitmap(hdc, highResSize, highResSize);
-    HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
-    
-    // Fill background with dark color to match window
-    RECT memRect = {0, 0, highResSize, highResSize};
-    HBRUSH bgBrush = CreateSolidBrush(RGB(18, 18, 18));
-    FillRect(hdcMem, &memRect, bgBrush);
-    DeleteObject(bgBrush);
-    
-    // Enable high-quality rendering
-    SetGraphicsMode(hdcMem, GM_ADVANCED);
-    SetBkMode(hdcMem, TRANSPARENT);
-    
-    // Draw white circle with no border - perfectly smooth
-    HBRUSH brush = CreateSolidBrush(RGB(255, 255, 255));
-    HPEN pen = CreatePen(PS_NULL, 0, RGB(255, 255, 255)); // No visible border
-    HGDIOBJ oldBrush = SelectObject(hdcMem, brush);
-    HGDIOBJ oldPen = SelectObject(hdcMem, pen);
-    
-    // Draw circle at high resolution
-    Ellipse(hdcMem, 0, 0, highResSize, highResSize);
-    
-    // Draw smooth arrow using polygon
-    int arrowSize = (int)(highResSize * 0.35);
-    int centerX = highResSize / 2;
-    int centerY = highResSize / 2;
-    
-    // Create arrow as a filled polygon (pointing up)
-    POINT arrowPoints[7];
-    int arrowWidth = (int)(arrowSize * 0.6);
-    int arrowHeight = arrowSize;
-    
-    // Arrow shape: triangle head + rectangular shaft
-    arrowPoints[0].x = centerX;
-    arrowPoints[0].y = centerY - arrowHeight / 2;
-    arrowPoints[1].x = centerX - arrowWidth / 2;
-    arrowPoints[1].y = centerY - arrowHeight / 2 + (int)(arrowHeight * 0.4);
-    arrowPoints[2].x = centerX - (int)(arrowWidth * 0.25);
-    arrowPoints[2].y = centerY - arrowHeight / 2 + (int)(arrowHeight * 0.4);
-    arrowPoints[3].x = centerX - (int)(arrowWidth * 0.25);
-    arrowPoints[3].y = centerY + arrowHeight / 2;
-    arrowPoints[4].x = centerX + (int)(arrowWidth * 0.25);
-    arrowPoints[4].y = centerY + arrowHeight / 2;
-    arrowPoints[5].x = centerX + (int)(arrowWidth * 0.25);
-    arrowPoints[5].y = centerY - arrowHeight / 2 + (int)(arrowHeight * 0.4);
-    arrowPoints[6].x = centerX + arrowWidth / 2;
-    arrowPoints[6].y = centerY - arrowHeight / 2 + (int)(arrowHeight * 0.4);
-    
-    // Draw dark arrow
-    HBRUSH arrowBrush = CreateSolidBrush(RGB(0, 0, 0));
-    HPEN arrowPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
-    HGDIOBJ oldArrowBrush = SelectObject(hdcMem, arrowBrush);
-    HGDIOBJ oldArrowPen = SelectObject(hdcMem, arrowPen);
-    
-    Polygon(hdcMem, arrowPoints, 7);
-    
-    // Cleanup arrow objects
-    SelectObject(hdcMem, oldArrowBrush);
-    SelectObject(hdcMem, oldArrowPen);
-    DeleteObject(arrowBrush);
-    DeleteObject(arrowPen);
-    
-    // Cleanup circle objects
-    SelectObject(hdcMem, oldBrush);
-    SelectObject(hdcMem, oldPen);
-    DeleteObject(brush);
-    DeleteObject(pen);
-    
-    // Scale down with high-quality interpolation for smooth anti-aliasing
-    SetStretchBltMode(hdc, HALFTONE);
-    SetBrushOrgEx(hdc, 0, 0, NULL);
-    StretchBlt(hdc, circleRect.left, circleRect.top, size, size,
-               hdcMem, 0, 0, highResSize, highResSize, SRCCOPY);
-    
-    // Cleanup memory DC
-    SelectObject(hdcMem, hbmOld);
-    DeleteObject(hbmMem);
-    DeleteDC(hdcMem);
-}
 
 void MainWindow::OnSize() {
     RECT clientRect;
@@ -374,7 +279,7 @@ void MainWindow::OnCreate() {
     HINSTANCE hInst = hInstance_ ? hInstance_ : GetModuleHandle(NULL);
     
     // Create fonts
-    hTitleFont_ = CreateFontW(-40, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+    hTitleFont_ = CreateFontW(-44, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
     
