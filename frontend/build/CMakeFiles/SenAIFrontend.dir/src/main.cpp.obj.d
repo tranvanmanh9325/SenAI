@@ -281,10 +281,14 @@ CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj: \
  C:/msys64/ucrt64/include/c++/14.2.0/cstdint \
  C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/stdint.h \
  C:/msys64/ucrt64/include/stdint.h \
+ C:/msys64/ucrt64/include/c++/14.2.0/vector \
+ C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_uninitialized.h \
+ C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_vector.h \
+ C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_bvector.h \
+ C:/msys64/ucrt64/include/c++/14.2.0/bits/vector.tcc \
  D:\GitHub\SenAI\frontend\src\HttpClient.h \
  C:/msys64/ucrt64/include/c++/14.2.0/memory \
  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_tempbuf.h \
- C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_uninitialized.h \
  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_raw_storage_iter.h \
  C:/msys64/ucrt64/include/c++/14.2.0/bits/align.h \
  C:/msys64/ucrt64/include/c++/14.2.0/bits/unique_ptr.h \

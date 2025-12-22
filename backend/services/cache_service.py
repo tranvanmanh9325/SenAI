@@ -188,6 +188,14 @@ class CacheService:
         key = self.get_llm_response_key(user_message, conversation_history, system_prompt, temperature)
         return self.get(key)
     
+    def clear_llm_cache(self, user_message: str,
+                       conversation_history: Optional[list] = None,
+                       system_prompt: Optional[str] = None,
+                       temperature: float = 0.7) -> bool:
+        """Clear cached LLM response for specific key"""
+        key = self.get_llm_response_key(user_message, conversation_history, system_prompt, temperature)
+        return self.delete(key)
+    
     def cache_pattern_analysis(self, session_id: str, analysis: Dict[str, Any], 
                               limit: int = 10, ttl: Optional[int] = None) -> bool:
         """Cache pattern analysis result"""

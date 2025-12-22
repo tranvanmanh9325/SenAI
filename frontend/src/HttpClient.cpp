@@ -6,7 +6,8 @@
 
 #pragma comment(lib, "wininet.lib")
 
-HttpClient::HttpClient(const std::string& baseUrl) : baseUrl_(baseUrl) {}
+HttpClient::HttpClient(const std::string& baseUrl, const std::string& apiKey) 
+    : baseUrl_(baseUrl), apiKey_(apiKey) {}
 
 std::string HttpClient::escapeJson(const std::string& str) {
     std::ostringstream o;
@@ -30,6 +31,15 @@ std::string HttpClient::escapeJson(const std::string& str) {
     return o.str();
 }
 
+std::string HttpClient::buildHeaders() {
+    std::ostringstream headers;
+    headers << "Content-Type: application/json\r\n";
+    if (!apiKey_.empty()) {
+        headers << "X-API-Key: " << apiKey_ << "\r\n";
+    }
+    return headers.str();
+}
+
 std::string HttpClient::httpGet(const std::string& endpoint) {
     std::string url = baseUrl_ + endpoint;
     std::string result;
@@ -39,19 +49,56 @@ std::string HttpClient::httpGet(const std::string& endpoint) {
         return "Error: Failed to initialize WinInet";
     }
     
-    HINTERNET hConnect = InternetOpenUrlA(hInternet, url.c_str(), NULL, 0, INTERNET_FLAG_RELOAD, 0);
+    URL_COMPONENTSA urlComp;
+    ZeroMemory(&urlComp, sizeof(urlComp));
+    urlComp.dwStructSize = sizeof(urlComp);
+    urlComp.dwHostNameLength = -1;
+    urlComp.dwUrlPathLength = -1;
+    
+    char hostName[256];
+    char urlPath[1024];
+    urlComp.lpszHostName = hostName;
+    urlComp.lpszUrlPath = urlPath;
+    
+    if (!InternetCrackUrlA(url.c_str(), url.length(), 0, &urlComp)) {
+        InternetCloseHandle(hInternet);
+        return "Error: Failed to parse URL";
+    }
+    
+    HINTERNET hConnect = InternetConnectA(hInternet, hostName, urlComp.nPort, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (!hConnect) {
         InternetCloseHandle(hInternet);
-        return "Error: Failed to open URL";
+        return "Error: Failed to connect";
+    }
+    
+    HINTERNET hRequest = HttpOpenRequestA(hConnect, "GET", urlPath, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
+    if (!hRequest) {
+        InternetCloseHandle(hConnect);
+        InternetCloseHandle(hInternet);
+        return "Error: Failed to open request";
+    }
+    
+    // Add headers including API key if available
+    std::string headers = buildHeaders();
+    if (!headers.empty()) {
+        HttpAddRequestHeadersA(hRequest, headers.c_str(), headers.length(), HTTP_ADDREQ_FLAG_ADD);
+    }
+    
+    if (!HttpSendRequestA(hRequest, NULL, 0, NULL, 0)) {
+        InternetCloseHandle(hRequest);
+        InternetCloseHandle(hConnect);
+        InternetCloseHandle(hInternet);
+        return "Error: Failed to send request";
     }
     
     char buffer[4096];
     DWORD bytesRead;
-    while (InternetReadFile(hConnect, buffer, sizeof(buffer) - 1, &bytesRead) && bytesRead > 0) {
+    while (InternetReadFile(hRequest, buffer, sizeof(buffer) - 1, &bytesRead) && bytesRead > 0) {
         buffer[bytesRead] = '\0';
         result += buffer;
     }
     
+    InternetCloseHandle(hRequest);
     InternetCloseHandle(hConnect);
     InternetCloseHandle(hInternet);
     
@@ -96,7 +143,7 @@ std::string HttpClient::httpPost(const std::string& endpoint, const std::string&
         return "Error: Failed to open request";
     }
     
-    std::string headers = "Content-Type: application/json\r\n";
+    std::string headers = buildHeaders();
     HttpAddRequestHeadersA(hRequest, headers.c_str(), headers.length(), HTTP_ADDREQ_FLAG_ADD);
     
     if (!HttpSendRequestA(hRequest, NULL, 0, (LPVOID)jsonData.c_str(), jsonData.length())) {
@@ -158,7 +205,7 @@ std::string HttpClient::httpPut(const std::string& endpoint, const std::string& 
         return "Error: Failed to open request";
     }
     
-    std::string headers = "Content-Type: application/json\r\n";
+    std::string headers = buildHeaders();
     HttpAddRequestHeadersA(hRequest, headers.c_str(), headers.length(), HTTP_ADDREQ_FLAG_ADD);
     
     if (!HttpSendRequestA(hRequest, NULL, 0, (LPVOID)jsonData.c_str(), jsonData.length())) {
@@ -186,6 +233,83 @@ std::string HttpClient::checkHealth() {
     return httpGet("/health");
 }
 
+std::string HttpClient::extractJsonField(const std::string& json, const std::string& fieldName) {
+    // Improved JSON parser để extract field value
+    // Tìm pattern: "fieldName": (có thể có khoảng trắng)
+    std::string searchPattern = "\"" + fieldName + "\"";
+    size_t pos = json.find(searchPattern);
+    if (pos == std::string::npos) {
+        return ""; // Field not found
+    }
+    
+    // Tìm dấu hai chấm sau field name
+    pos += searchPattern.length();
+    // Bỏ qua khoảng trắng
+    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t')) {
+        pos++;
+    }
+    
+    if (pos >= json.length() || json[pos] != ':') {
+        return ""; // No colon found
+    }
+    pos++; // Skip colon
+    
+    // Bỏ qua khoảng trắng sau dấu hai chấm
+    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t')) {
+        pos++;
+    }
+    
+    if (pos >= json.length()) {
+        return ""; // End of string
+    }
+    
+    // Kiểm tra nếu giá trị là null
+    if (json.substr(pos, 4) == "null") {
+        return ""; // Return empty string for null
+    }
+    
+    // Kiểm tra nếu giá trị là string (bắt đầu bằng dấu nháy kép)
+    if (json[pos] != '"') {
+        return ""; // Not a string value
+    }
+    pos++; // Skip opening quote
+    
+    // Tìm vị trí kết thúc của value (dấu nháy kép tiếp theo, nhưng không phải escaped)
+    std::string result;
+    bool escaped = false;
+    for (size_t i = pos; i < json.length(); ++i) {
+        char c = json[i];
+        if (escaped) {
+            if (c == 'n') result += '\n';
+            else if (c == 'r') result += '\r';
+            else if (c == 't') result += '\t';
+            else if (c == '\\') result += '\\';
+            else if (c == '"') result += '"';
+            else if (c == 'u') {
+                // Handle \uXXXX unicode escape sequences
+                if (i + 4 < json.length()) {
+                    // Simple handling: just skip the unicode sequence for now
+                    // In a full implementation, you'd parse the hex digits
+                    i += 4;
+                }
+            } else {
+                result += c;
+            }
+            escaped = false;
+        } else {
+            if (c == '\\') {
+                escaped = true;
+            } else if (c == '"') {
+                break; // End of string value
+            } else {
+                result += c;
+            }
+        }
+    }
+    
+    return result;
+}
+
 std::string HttpClient::sendMessage(const std::string& message, const std::string& sessionId) {
     std::ostringstream json;
     json << "{\"user_message\":\"" << escapeJson(message) << "\"";
@@ -193,7 +317,28 @@ std::string HttpClient::sendMessage(const std::string& message, const std::strin
         json << ",\"session_id\":\"" << escapeJson(sessionId) << "\"";
     }
     json << "}";
-    return httpPost("/conversations", json.str());
+    std::string response = httpPost("/conversations", json.str());
+    
+    // Check if response is an error
+    if (response.find("Error:") == 0) {
+        return response; // Return error message as-is
+    }
+    
+    // Extract ai_response từ JSON response
+    std::string aiResponse = extractJsonField(response, "ai_response");
+    if (!aiResponse.empty()) {
+        return aiResponse;
+    }
+    
+    // Nếu không tìm thấy ai_response, kiểm tra xem có phải là error response không
+    std::string errorDetail = extractJsonField(response, "detail");
+    if (!errorDetail.empty()) {
+        return "Error: " + errorDetail;
+    }
+    
+    // Nếu vẫn không tìm thấy, trả về toàn bộ response để debug (fallback)
+    // Trong production, có thể muốn return empty string hoặc error message
+    return response;
 }
 
 std::string HttpClient::getConversations(const std::string& sessionId) {

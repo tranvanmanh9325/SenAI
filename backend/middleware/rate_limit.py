@@ -21,7 +21,7 @@ limiter = Limiter(
     key_func=get_remote_address,  # Sử dụng IP address để identify clients
     default_limits=[DEFAULT_RATE_LIMIT] if RATE_LIMIT_ENABLED else [],
     storage_uri="memory://",  # In-memory storage (có thể thay bằng Redis sau)
-    headers_enabled=True  # Thêm rate limit headers vào response
+    headers_enabled=False  # Disable headers để tránh lỗi với exception handling
 )
 
 
@@ -44,7 +44,7 @@ limiter_with_api_key = Limiter(
     key_func=get_rate_limit_key,
     default_limits=[DEFAULT_RATE_LIMIT] if RATE_LIMIT_ENABLED else [],
     storage_uri="memory://",
-    headers_enabled=True
+    headers_enabled=False  # Disable headers để tránh lỗi với exception handling
 )
 
 

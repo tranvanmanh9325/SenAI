@@ -85,7 +85,12 @@ class SemanticSearchService:
             )
             
         except Exception as e:
-            logger.error(f"Error in semantic search: {e}")
+            logger.error(f"Error in semantic search: {e}", exc_info=True)
+            # Rollback transaction nếu có lỗi
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
             return []
     
     async def _search_with_pgvector(
@@ -100,12 +105,14 @@ class SemanticSearchService:
         """Search sử dụng pgvector với native vector operations"""
         try:
             # Convert query vector to PostgreSQL array format
+            # Vector format is safe: [1,2,3,...] contains no quotes
             query_vec_str = "[" + ",".join(map(str, query_vec)) + "]"
             
             # Chọn cột vector để search
             vector_column = "combined_embedding_vector" if use_combined else "user_message_embedding_vector"
             
             # Build query với pgvector cosine similarity
+            # Note: Vector phải được embed trực tiếp vào SQL string, không thể dùng parameter binding cho ::vector
             query_sql = f"""
                 SELECT 
                     ce.conversation_id,
@@ -113,25 +120,24 @@ class SemanticSearchService:
                     ac.ai_response,
                     ac.session_id,
                     ac.created_at,
-                    1 - (ce.{vector_column} <=> :query_vec::vector) as similarity
+                    1 - (ce.{vector_column} <=> '{query_vec_str}'::vector) as similarity
                 FROM conversation_embeddings ce
                 JOIN agent_conversations ac ON ce.conversation_id = ac.id
             """
             
             # Add rating filter nếu có
             if filter_by_rating:
-                query_sql += """
+                query_sql += f"""
                     JOIN conversation_feedback cf ON ce.conversation_id = cf.conversation_id
                     WHERE ce.{vector_column} IS NOT NULL AND cf.rating >= :min_rating
-                """.format(vector_column=vector_column)
+                """
             else:
                 query_sql += f" WHERE ce.{vector_column} IS NOT NULL"
             
             # Order by similarity DESC và limit
-            query_sql += f" ORDER BY ce.{vector_column} <=> :query_vec::vector LIMIT :result_limit"
+            query_sql += f" ORDER BY ce.{vector_column} <=> '{query_vec_str}'::vector LIMIT :result_limit"
             
             params = {
-                "query_vec": query_vec_str,
                 "result_limit": limit,
                 "min_similarity": min_similarity
             }
@@ -157,7 +163,12 @@ class SemanticSearchService:
             return similarities
             
         except Exception as e:
-            logger.error(f"Error in pgvector search: {e}")
+            logger.error(f"Error in pgvector search: {e}", exc_info=True)
+            # Rollback transaction nếu có lỗi
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
             raise
     
     async def _search_with_json(
@@ -431,21 +442,20 @@ class SemanticSearchService:
                 # Update vector columns nếu có
                 if combined_emb_vec:
                     try:
-                        update_vec_sql = """
+                        # Embed vector trực tiếp vào SQL string
+                        update_vec_sql = f"""
                             UPDATE conversation_embeddings
-                            SET combined_embedding_vector = :combined_vec::vector
+                            SET combined_embedding_vector = '{combined_emb_vec}'::vector
                         """
-                        params = {"combined_vec": combined_emb_vec, "id": existing.id}
                         
                         if user_emb_vec:
-                            update_vec_sql += ", user_message_embedding_vector = :user_vec::vector"
-                            params["user_vec"] = user_emb_vec
+                            update_vec_sql += f", user_message_embedding_vector = '{user_emb_vec}'::vector"
                         
                         if ai_emb_vec:
-                            update_vec_sql += ", ai_response_embedding_vector = :ai_vec::vector"
-                            params["ai_vec"] = ai_emb_vec
+                            update_vec_sql += f", ai_response_embedding_vector = '{ai_emb_vec}'::vector"
                         
                         update_vec_sql += " WHERE id = :id"
+                        params = {"id": existing.id}
                         self.db.execute(text(update_vec_sql), params)
                     except Exception as e:
                         logger.warning(f"Failed to update vector columns: {e}")
@@ -473,21 +483,20 @@ class SemanticSearchService:
                 # Insert vector columns nếu có
                 if combined_emb_vec:
                     try:
-                        insert_vec_sql = """
+                        # Embed vector trực tiếp vào SQL string
+                        insert_vec_sql = f"""
                             UPDATE conversation_embeddings
-                            SET combined_embedding_vector = :combined_vec::vector
+                            SET combined_embedding_vector = '{combined_emb_vec}'::vector
                         """
-                        params = {"combined_vec": combined_emb_vec, "id": embedding_record.id}
                         
                         if user_emb_vec:
-                            insert_vec_sql += ", user_message_embedding_vector = :user_vec::vector"
-                            params["user_vec"] = user_emb_vec
+                            insert_vec_sql += f", user_message_embedding_vector = '{user_emb_vec}'::vector"
                         
                         if ai_emb_vec:
-                            insert_vec_sql += ", ai_response_embedding_vector = :ai_vec::vector"
-                            params["ai_vec"] = ai_emb_vec
+                            insert_vec_sql += f", ai_response_embedding_vector = '{ai_emb_vec}'::vector"
                         
                         insert_vec_sql += " WHERE id = :id"
+                        params = {"id": embedding_record.id}
                         self.db.execute(text(insert_vec_sql), params)
                     except Exception as e:
                         logger.warning(f"Failed to insert vector columns: {e}")

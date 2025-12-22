@@ -298,12 +298,39 @@ void MainWindow::OnSize() {
     GetClientRect(hwnd_, &clientRect);
     windowWidth_ = clientRect.right - clientRect.left;
     windowHeight_ = clientRect.bottom - clientRect.top;
-    
-    // Recalculate input field position (at bottom)
-    int inputWidth = windowWidth_ * 0.7;
+
+    // Layout input:
+    // - Khi chưa có message: input nằm giữa màn hình, ngay dưới dòng title
+    // - Khi đã có message: input nằm sát cạnh dưới
+    // - Khi đang animate: dùng animCurrentY_ (di chuyển dần từ giữa -> dưới)
+    bool initialLayout = messages_.empty() && !isAnimating_;
+
+    int inputWidth = static_cast<int>(windowWidth_ * 0.7);
     int inputHeight = 60;
     int inputX = (windowWidth_ - inputWidth) / 2;
-    int inputY = windowHeight_ - inputHeight - 20; // 20px from bottom
+    int inputY;
+
+    int centerY = windowHeight_ / 2 + 40;
+    int bottomY = windowHeight_ - inputHeight - 20; // 20px from bottom
+    if (centerY + inputHeight + 20 > windowHeight_) {
+        centerY = bottomY; // fallback nếu cửa sổ quá nhỏ
+    }
+
+    if (isAnimating_) {
+        animTargetY_ = bottomY;
+        // Giữ currentY trong khoảng [centerY, bottomY]
+        if (animCurrentY_ < centerY) animCurrentY_ = centerY;
+        if (animCurrentY_ > bottomY) animCurrentY_ = bottomY;
+        inputY = animCurrentY_;
+    } else if (initialLayout) {
+        inputY = centerY;
+        animCurrentY_ = inputY;
+        animTargetY_ = inputY;
+    } else {
+        inputY = bottomY;
+        animCurrentY_ = inputY;
+        animTargetY_ = inputY;
+    }
     
     inputRect_.left = inputX;
     inputRect_.top = inputY;
@@ -361,11 +388,33 @@ void MainWindow::OnCreate() {
     int width = clientRect.right - clientRect.left;
     int height = clientRect.bottom - clientRect.top;
     
-    // Calculate input field position (at bottom)
-    int inputWidth = width * 0.7; // 70% of window width
+    // Layout ban đầu giống OnSize: xét theo việc đã có message hay chưa và trạng thái animate
+    bool initialLayout = messages_.empty() && !isAnimating_;
+
+    int inputWidth = static_cast<int>(width * 0.7); // 70% of window width
     int inputHeight = 60;
     int inputX = (width - inputWidth) / 2;
-    int inputY = height - inputHeight - 20; // 20px from bottom
+    int inputY;
+
+    int centerY = height / 2 + 40;
+    int bottomY = height - inputHeight - 20; // 20px from bottom
+    if (centerY + inputHeight + 20 > height) {
+        centerY = bottomY;
+    }
+
+    if (isAnimating_) {
+        animCurrentY_ = centerY;
+        animTargetY_ = bottomY;
+        inputY = animCurrentY_;
+    } else if (initialLayout) {
+        inputY = centerY;
+        animCurrentY_ = inputY;
+        animTargetY_ = inputY;
+    } else {
+        inputY = bottomY;
+        animCurrentY_ = inputY;
+        animTargetY_ = inputY;
+    }
     
     inputRect_.left = inputX;
     inputRect_.top = inputY;

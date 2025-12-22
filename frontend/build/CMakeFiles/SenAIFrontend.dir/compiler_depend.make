@@ -445,9 +445,11 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: D:/GitHub/SenAI/frontend/sr
   C:/msys64/ucrt64/include/basetsd.h \
   C:/msys64/ucrt64/include/bcrypt.h \
   C:/msys64/ucrt64/include/bemapiset.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/algorithm \
   C:/msys64/ucrt64/include/c++/14.2.0/backward/auto_ptr.h \
   C:/msys64/ucrt64/include/c++/14.2.0/backward/binders.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bit \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/algorithmfwd.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/align.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/alloc_traits.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/allocated_ptr.h \
@@ -460,6 +462,7 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: D:/GitHub/SenAI/frontend/sr
   C:/msys64/ucrt64/include/c++/14.2.0/bits/basic_string.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/char_traits.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/charconv.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/codecvt.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/concept_check.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/cpp_type_traits.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/cxxabi_forced.h \
@@ -467,6 +470,7 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: D:/GitHub/SenAI/frontend/sr
   C:/msys64/ucrt64/include/c++/14.2.0/bits/exception.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/exception_defines.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/exception_ptr.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/fstream.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/functexcept.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/functional_hash.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/hash_bytes.h \
@@ -496,9 +500,12 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: D:/GitHub/SenAI/frontend/sr
   C:/msys64/ucrt64/include/c++/14.2.0/bits/shared_ptr_base.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/sstream.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/std_abs.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_algo.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_algobase.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_bvector.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_construct.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_function.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_heap.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_iterator.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_iterator_base_funcs.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_iterator_base_types.h \
@@ -506,14 +513,17 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: D:/GitHub/SenAI/frontend/sr
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_raw_storage_iter.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_tempbuf.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_uninitialized.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_vector.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/streambuf.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/streambuf_iterator.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/string_view.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stringfwd.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/uniform_int_dist.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/unique_ptr.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/uses_allocator.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/uses_allocator_args.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/utility.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/vector.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/version.h \
   C:/msys64/ucrt64/include/c++/14.2.0/cctype \
   C:/msys64/ucrt64/include/c++/14.2.0/cerrno \
@@ -535,6 +545,7 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: D:/GitHub/SenAI/frontend/sr
   C:/msys64/ucrt64/include/c++/14.2.0/ext/numeric_traits.h \
   C:/msys64/ucrt64/include/c++/14.2.0/ext/string_conversions.h \
   C:/msys64/ucrt64/include/c++/14.2.0/ext/type_traits.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/fstream \
   C:/msys64/ucrt64/include/c++/14.2.0/initializer_list \
   C:/msys64/ucrt64/include/c++/14.2.0/ios \
   C:/msys64/ucrt64/include/c++/14.2.0/iosfwd \
@@ -543,6 +554,7 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: D:/GitHub/SenAI/frontend/sr
   C:/msys64/ucrt64/include/c++/14.2.0/new \
   C:/msys64/ucrt64/include/c++/14.2.0/ostream \
   C:/msys64/ucrt64/include/c++/14.2.0/pstl/execution_defs.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/pstl/glue_algorithm_defs.h \
   C:/msys64/ucrt64/include/c++/14.2.0/pstl/glue_memory_defs.h \
   C:/msys64/ucrt64/include/c++/14.2.0/pstl/pstl_config.h \
   C:/msys64/ucrt64/include/c++/14.2.0/sstream \
@@ -555,9 +567,12 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindow.cpp.obj: D:/GitHub/SenAI/frontend/sr
   C:/msys64/ucrt64/include/c++/14.2.0/tuple \
   C:/msys64/ucrt64/include/c++/14.2.0/type_traits \
   C:/msys64/ucrt64/include/c++/14.2.0/typeinfo \
+  C:/msys64/ucrt64/include/c++/14.2.0/vector \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/atomic_word.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/basic_file.h \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/c++allocator.h \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/c++config.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/c++io.h \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/c++locale.h \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/cpu_defines.h \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/ctype_base.h \
@@ -913,6 +928,7 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.obj: D:/GitHub/SenAI/frontend/
   C:/msys64/ucrt64/include/c++/14.2.0/bits/std_abs.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_algo.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_algobase.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_bvector.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_construct.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_function.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_heap.h \
@@ -923,6 +939,7 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.obj: D:/GitHub/SenAI/frontend/
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_raw_storage_iter.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_tempbuf.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_uninitialized.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_vector.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/string_view.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stringfwd.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/uniform_int_dist.h \
@@ -930,6 +947,7 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.obj: D:/GitHub/SenAI/frontend/
   C:/msys64/ucrt64/include/c++/14.2.0/bits/uses_allocator.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/uses_allocator_args.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/utility.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/vector.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/version.h \
   C:/msys64/ucrt64/include/c++/14.2.0/cctype \
   C:/msys64/ucrt64/include/c++/14.2.0/cerrno \
@@ -964,6 +982,7 @@ CMakeFiles/SenAIFrontend.dir/src/MainWindowUI.cpp.obj: D:/GitHub/SenAI/frontend/
   C:/msys64/ucrt64/include/c++/14.2.0/tuple \
   C:/msys64/ucrt64/include/c++/14.2.0/type_traits \
   C:/msys64/ucrt64/include/c++/14.2.0/typeinfo \
+  C:/msys64/ucrt64/include/c++/14.2.0/vector \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/atomic_word.h \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/c++allocator.h \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/c++config.h \
@@ -1310,6 +1329,7 @@ CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj: D:/GitHub/SenAI/frontend/src/main
   C:/msys64/ucrt64/include/c++/14.2.0/bits/shared_ptr_base.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/std_abs.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_algobase.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_bvector.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_construct.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_function.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_iterator.h \
@@ -1319,12 +1339,14 @@ CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj: D:/GitHub/SenAI/frontend/src/main
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_raw_storage_iter.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_tempbuf.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_uninitialized.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_vector.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/string_view.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stringfwd.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/unique_ptr.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/uses_allocator.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/uses_allocator_args.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/utility.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/vector.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/version.h \
   C:/msys64/ucrt64/include/c++/14.2.0/cctype \
   C:/msys64/ucrt64/include/c++/14.2.0/cerrno \
@@ -1358,6 +1380,7 @@ CMakeFiles/SenAIFrontend.dir/src/main.cpp.obj: D:/GitHub/SenAI/frontend/src/main
   C:/msys64/ucrt64/include/c++/14.2.0/tuple \
   C:/msys64/ucrt64/include/c++/14.2.0/type_traits \
   C:/msys64/ucrt64/include/c++/14.2.0/typeinfo \
+  C:/msys64/ucrt64/include/c++/14.2.0/vector \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/atomic_word.h \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/c++allocator.h \
   C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/c++config.h \
@@ -1632,6 +1655,8 @@ D:/GitHub/SenAI/frontend/src/HttpClient.cpp:
 
 C:/msys64/ucrt64/include/c++/14.2.0/bits/concept_check.h:
 
+C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_vector.h:
+
 C:/msys64/ucrt64/include/bemapiset.h:
 
 C:/msys64/ucrt64/include/utilapiset.h:
@@ -1811,6 +1836,8 @@ C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/xtestintrin.h:
 C:/msys64/ucrt64/include/c++/14.2.0/bits/locale_classes.h:
 
 C:/msys64/ucrt64/include/c++/14.2.0/bits/locale_classes.tcc:
+
+C:/msys64/ucrt64/include/c++/14.2.0/fstream:
 
 C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/fma4intrin.h:
 
@@ -2230,6 +2257,8 @@ C:/msys64/ucrt64/include/pthread_signal.h:
 
 C:/msys64/ucrt64/include/pthread_time.h:
 
+C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/basic_file.h:
+
 C:/msys64/ucrt64/include/pthread_unistd.h:
 
 C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/lzcntintrin.h:
@@ -2396,6 +2425,8 @@ C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/avx512pfintrin.h:
 
 C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/avx512vbmi2vlintrin.h:
 
+C:/msys64/ucrt64/include/c++/14.2.0/vector:
+
 C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/avxintrin.h:
 
 C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/avx512vbmiintrin.h:
@@ -2484,16 +2515,24 @@ C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/xsavesintrin.h:
 
 D:/GitHub/SenAI/frontend/src/MainWindow.cpp:
 
+C:/msys64/ucrt64/include/c++/14.2.0/algorithm:
+
+C:/msys64/ucrt64/include/c++/14.2.0/bits/algorithmfwd.h:
+
+C:/msys64/ucrt64/include/c++/14.2.0/bits/fstream.tcc:
+
+C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_algo.h:
+
+C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_bvector.h:
+
+C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_heap.h:
+
+C:/msys64/ucrt64/include/c++/14.2.0/bits/vector.tcc:
+
+C:/msys64/ucrt64/include/c++/14.2.0/x86_64-w64-mingw32/bits/c++io.h:
+
 C:/msys64/ucrt64/include/commctrl.h:
 
 C:/msys64/ucrt64/include/dwmapi.h:
 
 D:/GitHub/SenAI/frontend/src/MainWindowUI.cpp:
-
-C:/msys64/ucrt64/include/c++/14.2.0/algorithm:
-
-C:/msys64/ucrt64/include/c++/14.2.0/bits/algorithmfwd.h:
-
-C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_algo.h:
-
-C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_heap.h:

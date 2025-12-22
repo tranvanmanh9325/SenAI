@@ -5,6 +5,10 @@
 #include <uxtheme.h>
 #include <dwmapi.h>
 #include <string>
+#include <fstream>
+#include <algorithm>
+#include <cctype>
+#include <vector>
 
 // Helper functions to convert between UTF-16 (Windows wide) and UTF-8 (backend)
 namespace {
@@ -25,6 +29,99 @@ namespace {
         MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, result.data(), sizeNeeded - 1);
         return result;
     }
+
+    std::string GetEnvironmentVariable(const std::string& name) {
+        // Convert to wide string for Windows API
+        std::wstring wname = Utf8ToWide(name);
+        wchar_t* buffer = nullptr;
+        size_t size = 0;
+        if (_wgetenv_s(&size, nullptr, 0, wname.c_str()) == 0 && size > 0) {
+            buffer = new wchar_t[size];
+            if (_wgetenv_s(&size, buffer, size, wname.c_str()) == 0) {
+                std::string result = WideToUtf8(std::wstring(buffer));
+                delete[] buffer;
+                return result;
+            }
+            delete[] buffer;
+        }
+        return "";
+    }
+
+    // Trim whitespace from string
+    std::string Trim(const std::string& str) {
+        size_t first = str.find_first_not_of(" \t\n\r");
+        if (first == std::string::npos) return "";
+        size_t last = str.find_last_not_of(" \t\n\r");
+        return str.substr(first, (last - first + 1));
+    }
+
+    // Get executable directory path
+    std::string GetExecutableDirectory() {
+        char buffer[MAX_PATH];
+        DWORD length = GetModuleFileNameA(NULL, buffer, MAX_PATH);
+        if (length == 0) {
+            return "";
+        }
+        std::string exePath(buffer);
+        size_t lastSlash = exePath.find_last_of("\\/");
+        if (lastSlash != std::string::npos) {
+            return exePath.substr(0, lastSlash + 1);
+        }
+        return "";
+    }
+
+    // Read .env file and get value for a key
+    // Tries multiple locations: current directory, executable directory, and parent directories
+    std::string ReadEnvFile(const std::string& key) {
+        // List of possible .env file locations
+        std::vector<std::string> envPaths = {
+            ".env",                                    // Current directory
+            GetExecutableDirectory() + ".env",         // Executable directory
+            GetExecutableDirectory() + "../.env",     // Parent of executable directory
+            GetExecutableDirectory() + "../../.env",   // Two levels up (for build/bin/)
+            GetExecutableDirectory() + "../../../.env" // Three levels up
+        };
+
+        for (const auto& envPath : envPaths) {
+            std::ifstream file(envPath);
+            if (!file.is_open()) {
+                continue;
+            }
+
+            std::string line;
+            while (std::getline(file, line)) {
+                // Skip empty lines and comments
+                line = Trim(line);
+                if (line.empty() || line[0] == '#') {
+                    continue;
+                }
+
+                // Find the equals sign
+                size_t pos = line.find('=');
+                if (pos == std::string::npos) {
+                    continue;
+                }
+
+                std::string fileKey = Trim(line.substr(0, pos));
+                std::string value = Trim(line.substr(pos + 1));
+
+                // Remove quotes if present
+                if (!value.empty() && ((value[0] == '"' && value.back() == '"') || 
+                                      (value[0] == '\'' && value.back() == '\''))) {
+                    value = value.substr(1, value.length() - 2);
+                }
+
+                if (fileKey == key) {
+                    file.close();
+                    return value;
+                }
+            }
+
+            file.close();
+        }
+
+        return "";
+    }
 }
 
 #pragma comment(lib, "comctl32.lib")
@@ -40,6 +137,16 @@ MainWindow::MainWindow()
       originalEditProc_(NULL), scrollOffset_(0) {
     // Generate session ID
     sessionId_ = "session_" + std::to_string(GetTickCount());
+    
+    // Read API key from .env file (searches multiple locations)
+    std::string apiKey = ReadEnvFile("API_KEY");
+    // Fallback to environment variable if .env file doesn't have it
+    if (apiKey.empty()) {
+        apiKey = GetEnvironmentVariable("API_KEY");
+    }
+    if (!apiKey.empty()) {
+        httpClient_.setApiKey(apiKey);
+    }
     
     // Initialize input rect
     inputRect_ = {0, 0, 0, 0};
@@ -216,6 +323,26 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
         case WM_PAINT:
             OnPaint();
             return 0;
+
+        case WM_TIMER:
+            if (wParam == 1 && isAnimating_) {
+                // Animate input Y toward target
+                int step = 12; // px per tick
+                if (animCurrentY_ < animTargetY_) {
+                    animCurrentY_ = (std::min)(animCurrentY_ + step, animTargetY_);
+                }
+                // Re-layout controls at new position
+                OnSize();
+                if (animCurrentY_ >= animTargetY_) {
+                    isAnimating_ = false;
+                    if (animTimerId_) {
+                        KillTimer(hwnd_, animTimerId_);
+                        animTimerId_ = 0;
+                    }
+                }
+                return 0;
+            }
+            break;
             
         case WM_ERASEBKGND:
             OnEraseBkgnd((HDC)wParam);
@@ -308,6 +435,15 @@ void MainWindow::SendChatMessage() {
     aiMsg.text = Utf8ToWide(response);
     aiMsg.isUser = false;
     messages_.push_back(aiMsg);
+
+    // Sau khi đã có messages, khởi động animation đưa input xuống dưới
+    animStartY_ = animCurrentY_;
+    // Target sẽ được tính trong OnSize dựa trên windowHeight_; tạm cập nhật
+    isAnimating_ = true;
+    if (animTimerId_) {
+        KillTimer(hwnd_, animTimerId_);
+    }
+    animTimerId_ = SetTimer(hwnd_, 1, 15, NULL); // 15ms ~ 60fps
     
     // Redraw window to show new messages
     InvalidateRect(hwnd_, NULL, TRUE);

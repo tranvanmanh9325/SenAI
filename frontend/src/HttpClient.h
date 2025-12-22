@@ -4,7 +4,7 @@
 
 class HttpClient {
 public:
-    HttpClient(const std::string& baseUrl = "http://localhost:8000");
+    HttpClient(const std::string& baseUrl = "http://localhost:8000", const std::string& apiKey = "");
     
     // Health check
     std::string checkHealth();
@@ -21,11 +21,16 @@ public:
     
     void setBaseUrl(const std::string& url) { baseUrl_ = url; }
     std::string getBaseUrl() const { return baseUrl_; }
+    void setApiKey(const std::string& apiKey) { apiKey_ = apiKey; }
+    std::string getApiKey() const { return apiKey_; }
 
 private:
     std::string baseUrl_;
+    std::string apiKey_;
     std::string httpGet(const std::string& endpoint);
     std::string httpPost(const std::string& endpoint, const std::string& jsonData);
     std::string httpPut(const std::string& endpoint, const std::string& jsonData);
     std::string escapeJson(const std::string& str);
+    std::string buildHeaders();
+    std::string extractJsonField(const std::string& json, const std::string& fieldName);
 };

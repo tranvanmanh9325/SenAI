@@ -159,18 +159,30 @@ async def create_conversation(
                     })
         
         # Semantic search để tìm similar conversations
-        semantic_service = SemanticSearchService(db)
-        semantic_context = await semantic_service.get_semantic_context(
-            user_message=conversation.user_message,
-            context_limit=3
-        )
+        semantic_context = []
+        best_response = None
+        suggestions = {}
+        semantic_service = None
+        
+        try:
+            semantic_service = SemanticSearchService(db)
+            semantic_context = await semantic_service.get_semantic_context(
+                user_message=conversation.user_message,
+                context_limit=3
+            )
+        except Exception as e:
+            logging.warning(f"Error in semantic search, continuing without context: {e}")
         
         # Phân tích patterns và tìm suggestions
-        pattern_service = PatternAnalysisService(db)
-        suggestions = pattern_service.get_response_suggestions(
-            conversation.user_message,
-            use_patterns=True
-        )
+        try:
+            pattern_service = PatternAnalysisService(db)
+            suggestions = pattern_service.get_response_suggestions(
+                conversation.user_message,
+                use_patterns=True
+            )
+        except Exception as e:
+            logging.warning(f"Error in pattern analysis, continuing without suggestions: {e}")
+            suggestions = {}
         
         # Kết hợp semantic search results với pattern suggestions
         if semantic_context:
@@ -178,11 +190,15 @@ async def create_conversation(
             suggestions["semantic_matches"] = semantic_context
         
         # Tìm best response từ semantic search
-        best_response = await semantic_service.find_best_response(
-            user_message=conversation.user_message,
-            limit=1,
-            min_similarity=0.7
-        )
+        if semantic_service:
+            try:
+                best_response = await semantic_service.find_best_response(
+                    user_message=conversation.user_message,
+                    limit=1,
+                    min_similarity=0.7
+                )
+            except Exception as e:
+                logging.warning(f"Error finding best response, continuing: {e}")
         
         # Tạo enhanced system prompt với pattern insights và semantic context
         pattern_insights = {
@@ -234,8 +250,13 @@ async def create_conversation(
         )
         
         return db_conversation
+    except HTTPException:
+        # Re-raise HTTPException as-is
+        raise
     except Exception as e:
-        logging.error(f"Error creating conversation: {e}")
+        logging.error(f"Error creating conversation: {e}", exc_info=True)
+        # Rollback transaction nếu có lỗi
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
 
 @router.get("/conversations", response_model=List[ConversationResponse])

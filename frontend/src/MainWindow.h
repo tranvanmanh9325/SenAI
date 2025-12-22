@@ -77,4 +77,11 @@ private:
     // Chat messages
     std::vector<ChatMessage> messages_;
     int scrollOffset_; // For scrolling chat messages
+
+    // Input animation state (center -> bottom)
+    bool isAnimating_ = false;
+    int animCurrentY_ = 0;
+    int animTargetY_ = 0;
+    int animStartY_ = 0;
+    UINT_PTR animTimerId_ = 0;
 };

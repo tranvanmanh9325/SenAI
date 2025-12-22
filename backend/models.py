@@ -74,17 +74,14 @@ class ConversationEmbedding(Base):
     combined_embedding: str | None = Column(Text, nullable=True)  # JSON array của combined embedding
     
     # pgvector columns (nếu enabled)
+    # Note: Các cột vector này chỉ được tạo khi USE_PGVECTOR=true và pgvector extension được cài đặt
+    # Sử dụng user_message_embedding, ai_response_embedding, combined_embedding cho JSON storage
     if USE_PGVECTOR and PGVECTOR_AVAILABLE and Vector:
         user_message_embedding_vector = Column(Vector(384), nullable=True)
         ai_response_embedding_vector = Column(Vector(384), nullable=True)
         combined_embedding_vector = Column(Vector(384), nullable=True)
-        # Keep JSON columns for backward compatibility during migration
-        user_message_embedding_json = Column(Text, nullable=True)
-        ai_response_embedding_json = Column(Text, nullable=True)
-        combined_embedding_json = Column(Text, nullable=True)
     
     embedding_model: str = Column(String(100), default="sentence-transformers")  # Model đã dùng
     embedding_dimension: int = Column(Integer, default=384)  # Dimension của embedding
     created_at: datetime = Column(DateTime, default=datetime.utcnow)
     updated_at: datetime = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-

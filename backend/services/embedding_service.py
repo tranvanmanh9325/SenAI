@@ -207,6 +207,10 @@ class EmbeddingService:
             "dimension": None
         }
         
+        # Initialize variables
+        user_emb = None
+        ai_emb = None
+        
         # Generate user message embedding
         if user_message:
             user_emb = await self.generate_embedding(user_message, "user_message")
