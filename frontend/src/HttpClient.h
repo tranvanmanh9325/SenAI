@@ -2,6 +2,12 @@
 #include <string>
 #include <memory>
 
+// Kết quả chuẩn hóa (hiện tại mới dùng cho logging, tương lai có thể dùng rộng hơn)
+struct HttpResult {
+    bool ok;
+    std::string message;
+};
+
 class HttpClient {
 public:
     HttpClient(const std::string& baseUrl = "http://localhost:8000", const std::string& apiKey = "");

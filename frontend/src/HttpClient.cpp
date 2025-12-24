@@ -3,8 +3,33 @@
 #include <wininet.h>
 #include <sstream>
 #include <iomanip>
+#include <fstream>
+#include <chrono>
+#include <ctime>
 
 #pragma comment(lib, "wininet.lib")
+
+namespace {
+    // Ghi log lỗi HTTP đơn giản ra file SenAI_frontend.log (cùng thư mục exe)
+    void LogHttpError(const std::string& message) {
+        char path[MAX_PATH] = {0};
+        if (GetModuleFileNameA(NULL, path, MAX_PATH) == 0) {
+            return;
+        }
+        std::string exePath(path);
+        size_t pos = exePath.find_last_of("\\/");
+        std::string dir = (pos == std::string::npos) ? "" : exePath.substr(0, pos + 1);
+        std::string logPath = dir + "SenAI_frontend.log";
+
+        std::ofstream out(logPath, std::ios::app);
+        if (!out.is_open()) return;
+
+        auto now = std::chrono::system_clock::now();
+        std::time_t t = std::chrono::system_clock::to_time_t(now);
+        out << "[HTTP] " << std::put_time(std::localtime(&t), "%Y-%m-%d %H:%M:%S")
+            << " - " << message << "\n";
+    }
+}
 
 HttpClient::HttpClient(const std::string& baseUrl, const std::string& apiKey) 
     : baseUrl_(baseUrl), apiKey_(apiKey) {}
@@ -46,6 +71,7 @@ std::string HttpClient::httpGet(const std::string& endpoint) {
     
     HINTERNET hInternet = InternetOpenA("SenAI Client", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     if (!hInternet) {
+        LogHttpError("Failed to initialize WinInet for GET " + url);
         return "Error: Failed to initialize WinInet";
     }
     
@@ -62,12 +88,14 @@ std::string HttpClient::httpGet(const std::string& endpoint) {
     
     if (!InternetCrackUrlA(url.c_str(), url.length(), 0, &urlComp)) {
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to parse URL for GET: " + url);
         return "Error: Failed to parse URL";
     }
     
     HINTERNET hConnect = InternetConnectA(hInternet, hostName, urlComp.nPort, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (!hConnect) {
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to connect for GET " + url);
         return "Error: Failed to connect";
     }
     
@@ -75,6 +103,7 @@ std::string HttpClient::httpGet(const std::string& endpoint) {
     if (!hRequest) {
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to open GET request for " + url);
         return "Error: Failed to open request";
     }
     
@@ -88,6 +117,7 @@ std::string HttpClient::httpGet(const std::string& endpoint) {
         InternetCloseHandle(hRequest);
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to send GET request for " + url);
         return "Error: Failed to send request";
     }
     
@@ -111,6 +141,7 @@ std::string HttpClient::httpPost(const std::string& endpoint, const std::string&
     
     HINTERNET hInternet = InternetOpenA("SenAI Client", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     if (!hInternet) {
+        LogHttpError("Failed to initialize WinInet for POST " + url);
         return "Error: Failed to initialize WinInet";
     }
     
@@ -127,12 +158,14 @@ std::string HttpClient::httpPost(const std::string& endpoint, const std::string&
     
     if (!InternetCrackUrlA(url.c_str(), url.length(), 0, &urlComp)) {
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to parse URL for POST: " + url);
         return "Error: Failed to parse URL";
     }
     
     HINTERNET hConnect = InternetConnectA(hInternet, hostName, urlComp.nPort, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (!hConnect) {
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to connect for POST " + url);
         return "Error: Failed to connect";
     }
     
@@ -140,6 +173,7 @@ std::string HttpClient::httpPost(const std::string& endpoint, const std::string&
     if (!hRequest) {
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to open POST request for " + url);
         return "Error: Failed to open request";
     }
     
@@ -150,6 +184,7 @@ std::string HttpClient::httpPost(const std::string& endpoint, const std::string&
         InternetCloseHandle(hRequest);
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to send POST request for " + url);
         return "Error: Failed to send request";
     }
     
@@ -173,6 +208,7 @@ std::string HttpClient::httpPut(const std::string& endpoint, const std::string& 
     
     HINTERNET hInternet = InternetOpenA("SenAI Client", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     if (!hInternet) {
+        LogHttpError("Failed to initialize WinInet for PUT " + url);
         return "Error: Failed to initialize WinInet";
     }
     
@@ -189,12 +225,14 @@ std::string HttpClient::httpPut(const std::string& endpoint, const std::string& 
     
     if (!InternetCrackUrlA(url.c_str(), url.length(), 0, &urlComp)) {
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to parse URL for PUT: " + url);
         return "Error: Failed to parse URL";
     }
     
     HINTERNET hConnect = InternetConnectA(hInternet, hostName, urlComp.nPort, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (!hConnect) {
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to connect for PUT " + url);
         return "Error: Failed to connect";
     }
     
@@ -202,6 +240,7 @@ std::string HttpClient::httpPut(const std::string& endpoint, const std::string& 
     if (!hRequest) {
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to open PUT request for " + url);
         return "Error: Failed to open request";
     }
     
@@ -212,6 +251,7 @@ std::string HttpClient::httpPut(const std::string& endpoint, const std::string& 
         InternetCloseHandle(hRequest);
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
+        LogHttpError("Failed to send PUT request for " + url);
         return "Error: Failed to send request";
     }
     

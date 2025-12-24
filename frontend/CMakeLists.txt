@@ -13,13 +13,21 @@ endif()
 set(SOURCES
     src/main.cpp
     src/MainWindow.cpp
+    src/MainWindowLogic.cpp
+    src/MainWindowConversations.cpp
+    src/MainWindowChatMessages.cpp
     src/MainWindowUI.cpp
     src/MainWindowRender.cpp
+    src/MainWindowRenderControls.cpp
+    src/MainWindowRenderSidebar.cpp
+    src/MainWindowHelpers.cpp
+    src/MainWindowMessageHelpers.cpp
     src/HttpClient.cpp
 )
 
 set(HEADERS
     src/MainWindow.h
+    src/MainWindowHelpers.h
     src/HttpClient.h
 )
 

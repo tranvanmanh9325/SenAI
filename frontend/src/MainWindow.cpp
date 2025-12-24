@@ -4,169 +4,11 @@
 #include <commctrl.h>
 #include <uxtheme.h>
 #include <dwmapi.h>
-#include <string>
-#include <fstream>
-#include <algorithm>
-#include <cctype>
-#include <vector>
-
-// Helper functions to convert between UTF-16 (Windows wide) and UTF-8 (backend)
-namespace {
-    std::string WideToUtf8(const std::wstring& wstr) {
-        if (wstr.empty()) return {};
-        int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
-        if (sizeNeeded <= 0) return {};
-        std::string result(sizeNeeded - 1, '\0'); // exclude terminating null
-        WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, result.data(), sizeNeeded - 1, nullptr, nullptr);
-        return result;
-    }
-
-    std::wstring Utf8ToWide(const std::string& str) {
-        if (str.empty()) return {};
-        int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
-        if (sizeNeeded <= 0) return {};
-        std::wstring result(sizeNeeded - 1, L'\0'); // exclude terminating null
-        MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, result.data(), sizeNeeded - 1);
-        return result;
-    }
-
-    std::string GetEnvironmentVariable(const std::string& name) {
-        // Convert to wide string for Windows API
-        std::wstring wname = Utf8ToWide(name);
-        wchar_t* buffer = nullptr;
-        size_t size = 0;
-        if (_wgetenv_s(&size, nullptr, 0, wname.c_str()) == 0 && size > 0) {
-            buffer = new wchar_t[size];
-            if (_wgetenv_s(&size, buffer, size, wname.c_str()) == 0) {
-                std::string result = WideToUtf8(std::wstring(buffer));
-                delete[] buffer;
-                return result;
-            }
-            delete[] buffer;
-        }
-        return "";
-    }
-
-    // Trim whitespace from string
-    std::string Trim(const std::string& str) {
-        size_t first = str.find_first_not_of(" \t\n\r");
-        if (first == std::string::npos) return "";
-        size_t last = str.find_last_not_of(" \t\n\r");
-        return str.substr(first, (last - first + 1));
-    }
-
-    // Get executable directory path
-    std::string GetExecutableDirectory() {
-        char buffer[MAX_PATH];
-        DWORD length = GetModuleFileNameA(NULL, buffer, MAX_PATH);
-        if (length == 0) {
-            return "";
-        }
-        std::string exePath(buffer);
-        size_t lastSlash = exePath.find_last_of("\\/");
-        if (lastSlash != std::string::npos) {
-            return exePath.substr(0, lastSlash + 1);
-        }
-        return "";
-    }
-
-    // Read .env file and get value for a key
-    // Tries multiple locations: current directory, executable directory, and parent directories
-    std::string ReadEnvFile(const std::string& key) {
-        // List of possible .env file locations
-        std::vector<std::string> envPaths = {
-            ".env",                                    // Current directory
-            GetExecutableDirectory() + ".env",         // Executable directory
-            GetExecutableDirectory() + "../.env",     // Parent of executable directory
-            GetExecutableDirectory() + "../../.env",   // Two levels up (for build/bin/)
-            GetExecutableDirectory() + "../../../.env" // Three levels up
-        };
-
-        for (const auto& envPath : envPaths) {
-            std::ifstream file(envPath);
-            if (!file.is_open()) {
-                continue;
-            }
-
-            std::string line;
-            while (std::getline(file, line)) {
-                // Skip empty lines and comments
-                line = Trim(line);
-                if (line.empty() || line[0] == '#') {
-                    continue;
-                }
-
-                // Find the equals sign
-                size_t pos = line.find('=');
-                if (pos == std::string::npos) {
-                    continue;
-                }
-
-                std::string fileKey = Trim(line.substr(0, pos));
-                std::string value = Trim(line.substr(pos + 1));
-
-                // Remove quotes if present
-                if (!value.empty() && ((value[0] == '"' && value.back() == '"') || 
-                                      (value[0] == '\'' && value.back() == '\''))) {
-                    value = value.substr(1, value.length() - 2);
-                }
-
-                if (fileKey == key) {
-                    file.close();
-                    return value;
-                }
-            }
-
-            file.close();
-        }
-
-        return "";
-    }
-
-    std::wstring GetCurrentTimeW() {
-        SYSTEMTIME st;
-        GetLocalTime(&st);
-        wchar_t buf[16];
-        swprintf_s(buf, L"%02d:%02d", st.wHour, st.wMinute);
-        return std::wstring(buf);
-    }
-}
+#include <windowsx.h> // GET_WHEEL_DELTA_WPARAM
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "dwmapi.lib")
-
-MainWindow::MainWindow() 
-    : hwnd_(NULL), hInstance_(NULL), sessionId_("default_session"),
-      hDarkBrush_(NULL), hInputBrush_(NULL), hInputPen_(NULL),
-      hTitleFont_(NULL), hInputFont_(NULL),
-      windowWidth_(900), windowHeight_(700), showPlaceholder_(true),
-      hChatInput_(NULL), hChatHistory_(NULL), hSendButton_(NULL),
-      originalEditProc_(NULL), scrollOffset_(0) {
-    // Generate session ID
-    sessionId_ = "session_" + std::to_string(GetTickCount());
-    
-    // Read API key from .env file (searches multiple locations)
-    std::string apiKey = ReadEnvFile("API_KEY");
-    // Fallback to environment variable if .env file doesn't have it
-    if (apiKey.empty()) {
-        apiKey = GetEnvironmentVariable("API_KEY");
-    }
-    if (!apiKey.empty()) {
-        httpClient_.setApiKey(apiKey);
-    }
-    
-    // Initialize input rect
-    inputRect_ = {0, 0, 0, 0};
-}
-
-MainWindow::~MainWindow() {
-    if (hDarkBrush_) DeleteObject(hDarkBrush_);
-    if (hInputBrush_) DeleteObject(hInputBrush_);
-    if (hInputPen_) DeleteObject(hInputPen_);
-    if (hTitleFont_) DeleteObject(hTitleFont_);
-    if (hInputFont_) DeleteObject(hInputFont_);
-}
 
 bool MainWindow::Create(HINSTANCE hInstance) {
     hInstance_ = hInstance;
@@ -199,10 +41,10 @@ bool MainWindow::Create(HINSTANCE hInstance) {
         }
     }
     
-    // Create brushes and pens for dark/futuristic theme
-    hDarkBrush_ = CreateSolidBrush(RGB(11, 16, 33)); // Deep navy background
-    hInputBrush_ = CreateSolidBrush(RGB(20, 26, 44)); // Dark glass base
-    hInputPen_ = CreatePen(PS_SOLID, 1, RGB(74, 215, 255)); // Cyan outline
+    // Create brushes and pens for dark/futuristic theme (using theme config)
+    hDarkBrush_ = CreateSolidBrush(theme_.colorBackground);
+    hInputBrush_ = CreateSolidBrush(theme_.colorInputInner);
+    hInputPen_ = CreatePen(PS_SOLID, 1, theme_.colorInputStroke);
     
     hwnd_ = CreateWindowExW(
         0, // Remove WS_EX_LAYERED for now
@@ -294,6 +136,47 @@ LRESULT CALLBACK MainWindow::EditProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         }
     }
     
+    // Handle focus changes to update placeholder visibility
+    if (uMsg == WM_SETFOCUS || uMsg == WM_KILLFOCUS) {
+        if (pThis) {
+            // Invalidate input field to redraw placeholder
+            InvalidateRect(pThis->hwnd_, &pThis->inputRect_, FALSE);
+        }
+    }
+    
+    // Handle paint to ensure placeholder is visible when edit is empty
+    if (uMsg == WM_PAINT && pThis) {
+        // Let edit control paint first
+        LRESULT result = 0;
+        if (pThis->originalEditProc_) {
+            result = CallWindowProcW(pThis->originalEditProc_, hwnd, uMsg, wParam, lParam);
+        } else {
+            result = DefWindowProcW(hwnd, uMsg, wParam, lParam);
+        }
+        
+        // After edit control paints, check if we need to draw placeholder
+        if (pThis->chatViewState_.showPlaceholder && GetFocus() != hwnd) {
+            wchar_t buffer[1024] = {0};
+            GetWindowTextW(hwnd, buffer, static_cast<int>(sizeof(buffer) / sizeof(wchar_t)));
+            if (buffer[0] == L'\0') {
+                // Draw placeholder on top
+                HDC hdc = GetDC(hwnd);
+                SetBkMode(hdc, TRANSPARENT);
+                SetTextColor(hdc, pThis->theme_.colorPlaceholder);
+                SelectObject(hdc, pThis->hInputFont_);
+                
+                RECT clientRect;
+                GetClientRect(hwnd, &clientRect);
+                clientRect.left += 2; // Padding
+                
+                DrawTextW(hdc, pThis->uiStrings_.placeholder.c_str(), -1, &clientRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                ReleaseDC(hwnd, hdc);
+            }
+        }
+        
+        return result;
+    }
+    
     // Call original window procedure
     if (pThis && pThis->originalEditProc_) {
         return CallWindowProcW(pThis->originalEditProc_, hwnd, uMsg, wParam, lParam);
@@ -318,6 +201,19 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
             return 0;
             
         case WM_KEYDOWN:
+            // Global shortcuts
+            if (wParam == VK_ESCAPE) {
+                // Clear current input
+                ClearEdit(hChatInput_);
+                chatViewState_.showPlaceholder = true;
+                InvalidateRect(hwnd_, &inputRect_, FALSE);
+                return 0;
+            }
+            if (wParam == 'L' && (GetKeyState(VK_CONTROL) & 0x8000)) {
+                // Ctrl+L -> focus input
+                SetFocus(hChatInput_);
+                return 0;
+            }
             if (wParam == VK_RETURN && GetFocus() == hChatInput_) {
                 SendChatMessage();
                 return 0;
@@ -332,48 +228,271 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
             OnPaint();
             return 0;
 
+        case WM_MOUSEWHEEL: {
+            POINT pt;
+            GetCursorPos(&pt);
+            ScreenToClient(hwnd_, &pt);
+
+            // Sidebar scroll when mouse is over sidebar
+            if (sidebarVisible_ && pt.x >= 0 && pt.x < sidebarWidth_) {
+                int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+                int pixelsPerNotch = 50;
+                int step = (delta / WHEEL_DELTA) * pixelsPerNotch;
+
+                RECT clientRect;
+                GetClientRect(hwnd_, &clientRect);
+                int headerH = theme_.headerHeight;
+                int sidebarH = clientRect.bottom - headerH;
+
+                int itemHeight = 75;
+                int titleTop = (newSessionButtonRect_.bottom > 0)
+                    ? newSessionButtonRect_.bottom + 12
+                    : headerH + 12;
+                int titleHeight = 28;
+                int startY = titleTop + titleHeight + 12;
+
+                int visibleHeight = clientRect.bottom - startY;
+                if (visibleHeight < 0) visibleHeight = 0;
+
+                int contentHeight = itemHeight * static_cast<int>(conversations_.size());
+                int maxScroll = (contentHeight > visibleHeight) ? (contentHeight - visibleHeight) : 0;
+
+                sidebarScrollOffset_ -= step;
+                if (sidebarScrollOffset_ < 0) sidebarScrollOffset_ = 0;
+                if (sidebarScrollOffset_ > maxScroll) sidebarScrollOffset_ = maxScroll;
+
+                // Chỉ vẽ lại vùng sidebar, tránh ảnh hưởng nút gửi / input để giảm nhấp nháy
+                RECT sidebarRect = { 0, headerH, sidebarWidth_, clientRect.bottom };
+                InvalidateRect(hwnd_, &sidebarRect, FALSE);
+                return 0;
+            }
+
+            // Scroll chat messages with mouse wheel
+            int delta = GET_WHEEL_DELTA_WPARAM(wParam); // positive when wheel scrolled up
+            int pixelsPerNotch = 60; // tune for desired speed
+            int step = (delta / WHEEL_DELTA) * pixelsPerNotch;
+
+            // Wheel up = move content up => decrease scrollOffset_
+            chatViewState_.scrollOffset -= step;
+            if (chatViewState_.scrollOffset < 0) chatViewState_.scrollOffset = 0;
+
+            // User is manually scrolling; stop auto-pinning to bottom
+            chatViewState_.autoScrollToBottom = false;
+
+            // Chỉ invalid vùng chat messages, tránh đụng vào input & nút gửi để tránh nhấp nháy
+            RECT chatRect;
+            int headerH2 = theme_.headerHeight;
+            int contentLeft = sidebarVisible_ ? sidebarWidth_ : 0;
+
+            chatRect.left = contentLeft;
+            chatRect.top = headerH2;
+            chatRect.right = windowWidth_;
+            // Giới hạn dưới ngay phía trên ô input
+            chatRect.bottom = inputRect_.top > 0 ? inputRect_.top - 4 : windowHeight_;
+
+            // Đảm bảo rect hợp lệ trước khi vẽ
+            if (chatRect.bottom < chatRect.top) {
+                chatRect.bottom = chatRect.top;
+            }
+
+            InvalidateRect(hwnd_, &chatRect, FALSE);
+            return 0;
+        }
+
         case WM_TIMER:
-            if (wParam == 1 && isAnimating_) {
-                // Animate input Y toward target
-                int step = 12; // px per tick
-                if (animCurrentY_ < animTargetY_) {
-                    animCurrentY_ = (std::min)(animCurrentY_ + step, animTargetY_);
-                }
-                // Re-layout controls at new position
-                OnSize();
-                if (animCurrentY_ >= animTargetY_) {
-                    isAnimating_ = false;
-                    if (animTimerId_) {
-                        KillTimer(hwnd_, animTimerId_);
-                        animTimerId_ = 0;
+            if (wParam == 1 && chatViewState_.isAnimating) {
+                // Animate input Y toward target with smooth easing interpolation
+                int remaining = chatViewState_.animTargetY - chatViewState_.animCurrentY;
+                if (remaining != 0) {
+                    // Smooth ease-in-out interpolation: t^2 * (3 - 2*t) for smooth acceleration/deceleration
+                    // Calculate progress: 0.0 to 1.0
+                    int totalDistance = chatViewState_.animTargetY - chatViewState_.animStartY;
+                    if (totalDistance == 0) {
+                        chatViewState_.animCurrentY = chatViewState_.animTargetY;
+                        chatViewState_.isAnimating = false;
+                        if (chatViewState_.animTimerId_ != 0) {
+                            KillTimer(hwnd_, chatViewState_.animTimerId_);
+                            chatViewState_.animTimerId_ = 0;
+                        }
+                        OnSize();
+                        return 0;
                     }
+                    
+                    float progress = static_cast<float>(chatViewState_.animCurrentY - chatViewState_.animStartY) / static_cast<float>(totalDistance);
+                    // Clamp progress to [0, 1]
+                    if (progress < 0.0f) progress = 0.0f;
+                    if (progress > 1.0f) progress = 1.0f;
+                    
+                    // Smoothstep interpolation: t^2 * (3 - 2*t)
+                    float smoothProgress = progress * progress * (3.0f - 2.0f * progress);
+                    
+                    // Calculate new position
+                    int newY = chatViewState_.animStartY + static_cast<int>(smoothProgress * totalDistance);
+                    
+                    // Ensure we don't overshoot
+                    if ((totalDistance > 0 && newY >= chatViewState_.animTargetY) ||
+                        (totalDistance < 0 && newY <= chatViewState_.animTargetY)) {
+                        chatViewState_.animCurrentY = chatViewState_.animTargetY;
+                        chatViewState_.isAnimating = false;
+                        if (chatViewState_.animTimerId_ != 0) {
+                            KillTimer(hwnd_, chatViewState_.animTimerId_);
+                            chatViewState_.animTimerId_ = 0;
+                        }
+                    } else {
+                        chatViewState_.animCurrentY = newY;
+                    }
+                    
+                    // Re-layout controls at new position
+                    OnSize();
                 }
+                return 0;
+            }
+            if (wParam == 2) {
+                // Health check timer
+                CheckHealthStatus();
                 return 0;
             }
             break;
             
         case WM_ERASEBKGND:
-            OnEraseBkgnd((HDC)wParam);
-            return 1;
+            return OnEraseBkgnd((HDC)wParam);
+
+        case WM_LBUTTONDOWN: {
+            POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            
+            // Check if click is on settings icon
+            if (PtInRect(&settingsIconRect_, pt)) {
+                HandleSettingsIconClick();
+                return 0;
+            }
+
+            // Check click on custom send button (vẽ trực tiếp, không dùng child window)
+            if (sendButtonRect_.right > sendButtonRect_.left &&
+                sendButtonRect_.bottom > sendButtonRect_.top &&
+                PtInRect(&sendButtonRect_, pt)) {
+                SendChatMessage();
+                return 0;
+            }
+            
+            // Check if click is in sidebar
+            if (sidebarVisible_ && pt.x >= 0 && pt.x < sidebarWidth_) {
+                int headerH = theme_.headerHeight;
+
+                // Hit test nút "Chat Mới" (vẽ custom, không dùng child window)
+                if (newSessionButtonRect_.right > newSessionButtonRect_.left &&
+                    newSessionButtonRect_.bottom > newSessionButtonRect_.top &&
+                    PtInRect(&newSessionButtonRect_, pt)) {
+                    // Tái sử dụng logic cũ qua WM_COMMAND 1004
+                    SendMessage(hwnd_, WM_COMMAND, MAKELONG(1004, BN_CLICKED), 0);
+                    return 0;
+                }
+                int itemHeight = 75;
+                // Align click hit-test with rendered layout:
+                // - button top = headerH + 12
+                // - button height = 34
+                // - title top = buttonBottom + 12
+                // - title height = 28
+                // - list starts at titleBottom + 12
+                int titleTop = (newSessionButtonRect_.bottom > 0)
+                    ? newSessionButtonRect_.bottom + 12
+                    : headerH + 12;
+                int titleHeight = 28;
+                int startY = titleTop + titleHeight + 12;
+                int clickY = pt.y;
+                
+                if (clickY >= startY) {
+                    int itemIndex = (clickY - startY + sidebarScrollOffset_) / itemHeight;
+                    if (itemIndex >= 0 && static_cast<size_t>(itemIndex) < conversations_.size()) {
+                        LoadConversationBySessionId(conversations_[itemIndex].rawSessionId);
+                        selectedConversationIndex_ = itemIndex;
+                        InvalidateRect(hwnd_, NULL, TRUE);
+                    }
+                }
+            }
+            break;
+        }
+
+        case WM_MOUSEMOVE: {
+            POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+
+            // Track hover state for custom send button (không dùng child window)
+            if (sendButtonRect_.right > sendButtonRect_.left &&
+                sendButtonRect_.bottom > sendButtonRect_.top) {
+                bool hovering = PtInRect(&sendButtonRect_, pt);
+                if (hovering != isSendButtonHover_) {
+                    isSendButtonHover_ = hovering;
+                    InvalidateRect(hwnd_, &sendButtonRect_, FALSE);
+                }
+            }
+
+            // Track hover state for "Chat Mới" button (custom drawn)
+            if (newSessionButtonRect_.right > newSessionButtonRect_.left &&
+                newSessionButtonRect_.bottom > newSessionButtonRect_.top) {
+                bool hovering = PtInRect(&newSessionButtonRect_, pt);
+                if (hovering != isNewSessionButtonHover_) {
+                    isNewSessionButtonHover_ = hovering;
+                    InvalidateRect(hwnd_, &newSessionButtonRect_, FALSE);
+                }
+            }
+            
+            // Track hover state for settings icon
+            bool settingsHovering = PtInRect(&settingsIconRect_, pt);
+            if (settingsHovering != isSettingsIconHover_) {
+                isSettingsIconHover_ = settingsHovering;
+                InvalidateRect(hwnd_, &settingsIconRect_, FALSE);
+            }
+
+            // Track hover state for sidebar conversation items
+            if (sidebarVisible_ && pt.x >= 0 && pt.x < sidebarWidth_) {
+                int headerH = theme_.headerHeight;
+                int itemHeight = 75;
+                int titleTop = (newSessionButtonRect_.bottom > 0)
+                    ? newSessionButtonRect_.bottom + 12
+                    : headerH + 12;
+                int titleHeight = 28;
+                int startY = titleTop + titleHeight + 12;
+
+                int offsetY = pt.y - startY + sidebarScrollOffset_;
+                int newHover = -1;
+                if (offsetY >= 0) {
+                    int idx = offsetY / itemHeight;
+                    if (idx >= 0 && static_cast<size_t>(idx) < conversations_.size()) {
+                        newHover = idx;
+                    }
+                }
+                if (newHover != hoveredConversationIndex_) {
+                    hoveredConversationIndex_ = newHover;
+                    InvalidateRect(hwnd_, NULL, FALSE);
+                }
+            } else {
+                if (hoveredConversationIndex_ != -1) {
+                    hoveredConversationIndex_ = -1;
+                    InvalidateRect(hwnd_, NULL, FALSE);
+                }
+            }
+            
+            // Update message hover
+            UpdateMessageHover(pt.x, pt.y);
+            
+            break;
+        }
             
         case WM_CTLCOLOREDIT: {
             HDC hdc = (HDC)wParam;
-            SetBkMode(hdc, TRANSPARENT);
+            // Set background color to match input field inner color
+            SetBkColor(hdc, theme_.colorInputInner);
             SetTextColor(hdc, RGB(255, 255, 255));
-            return (LRESULT)GetStockObject(NULL_BRUSH); // Transparent background
+            // Return input brush để edit control có cùng màu với input field
+            return (LRESULT)hInputBrush_;
         }
         case WM_CTLCOLORBTN: {
             HDC hdc = (HDC)wParam;
-            SetBkColor(hdc, RGB(30, 30, 30));
+            SetBkMode(hdc, TRANSPARENT);
             SetTextColor(hdc, RGB(255, 255, 255));
-            return (LRESULT)hInputBrush_;
+            return (LRESULT)GetStockObject(NULL_BRUSH); // Let our custom painting handle background
         }
         case WM_DRAWITEM: {
-            if (wParam == 1003) { // Send button
-                LPDRAWITEMSTRUCT dis = (LPDRAWITEMSTRUCT)lParam;
-                DrawSendButton(dis->hDC, dis->rcItem);
-                return TRUE;
-            }
+            // Không còn dùng owner-draw cho nút gửi và "Chat Mới"
             break;
         }
         case WM_CTLCOLORSTATIC: {
@@ -396,89 +515,6 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
     return DefWindowProcW(hwnd_, uMsg, wParam, lParam);
 }
 
-void MainWindow::OnCommand(WPARAM wParam) {
-    switch (LOWORD(wParam)) {
-        case 1001: // Chat input
-            if (HIWORD(wParam) == EN_CHANGE) {
-                wchar_t buffer[1024];
-                GetWindowTextW(hChatInput_, buffer, static_cast<int>(sizeof(buffer) / sizeof(wchar_t)));
-                showPlaceholder_ = (buffer[0] == L'\0');
-                InvalidateRect(hwnd_, &inputRect_, FALSE);
-            }
-            break;
-        case 1003: // Send button
-            if (HIWORD(wParam) == BN_CLICKED) {
-                SendChatMessage();
-            }
-            break;
-        default:
-            break;
-    }
-}
-
-void MainWindow::SendChatMessage() {
-    wchar_t buffer[1024];
-    GetWindowTextW(hChatInput_, buffer, static_cast<int>(sizeof(buffer) / sizeof(wchar_t)));
-    
-    if (buffer[0] == L'\0') return;
-    
-    std::wstring wmessage(buffer);
-    std::string message = WideToUtf8(wmessage);
-
-    ClearEdit(hChatInput_);
-    showPlaceholder_ = true;
-    InvalidateRect(hwnd_, &inputRect_, FALSE);
-    
-    // Add user message to vector
-    ChatMessage userMsg;
-    userMsg.text = wmessage;
-    userMsg.isUser = true;
-    userMsg.timestamp = GetCurrentTimeW();
-    messages_.push_back(userMsg);
-    
-    // Send message to backend
-    std::string response = httpClient_.sendMessage(message, sessionId_);
-    
-    // Add AI response to vector
-    ChatMessage aiMsg;
-    aiMsg.text = Utf8ToWide(response);
-    aiMsg.isUser = false;
-    aiMsg.timestamp = GetCurrentTimeW();
-    messages_.push_back(aiMsg);
-
-    // Sau khi đã có messages, khởi động animation đưa input xuống dưới
-    animStartY_ = animCurrentY_;
-    // Target sẽ được tính trong OnSize dựa trên windowHeight_; tạm cập nhật
-    isAnimating_ = true;
-    if (animTimerId_) {
-        KillTimer(hwnd_, animTimerId_);
-    }
-    animTimerId_ = SetTimer(hwnd_, 1, 15, NULL); // 15ms ~ 60fps
-    
-    // Redraw window to show new messages
-    InvalidateRect(hwnd_, NULL, TRUE);
-}
-
-void MainWindow::RefreshConversations() {
-    std::string conversations = httpClient_.getConversations(sessionId_);
-    ClearEdit(hChatHistory_);
-    AppendTextToEdit(hChatHistory_, Utf8ToWide(conversations));
-}
-
-void MainWindow::RefreshTasks() {
-    // Not used in new UI
-}
-
-void MainWindow::CreateTask() {
-    // Not used in new UI
-}
-
-void MainWindow::AppendTextToEdit(HWND hEdit, const std::wstring& text) {
-    int len = GetWindowTextLengthW(hEdit);
-    SendMessageW(hEdit, EM_SETSEL, len, len);
-    SendMessageW(hEdit, EM_REPLACESEL, FALSE, (LPARAM)text.c_str());
-}
-
-void MainWindow::ClearEdit(HWND hEdit) {
-    SetWindowTextW(hEdit, L"");
-}
+// Logic functions (OnCommand, SendChatMessage, RefreshConversations, etc.)
+// are implemented in MainWindowLogic.cpp to keep this file focused on
+// window creation and message routing.

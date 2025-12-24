@@ -2,202 +2,6 @@
 #include "MainWindow.h"
 #include <string>
 #include <algorithm>
-
-// UI layout & chat rendering (render primitives are defined in MainWindowRender.cpp)
-
-void MainWindow::DrawChatMessages(HDC hdc) {
-    RECT clientRect;
-    GetClientRect(hwnd_, &clientRect);
-    
-    // Calculate available area for messages (above input field)
-    int inputHeight = 60;
-    int marginBottom = 20; // Space between messages and input
-    int headerH = 48;
-    int messageAreaTop = headerH + 20;
-    int messageAreaBottom = clientRect.bottom - inputHeight - marginBottom;
-    
-    // Message styling constants
-    int messageMarginX = 36; // Horizontal margin from window edges
-    int messageMarginY = 16; // Vertical spacing between messages
-    int bubblePaddingX = 18; // Horizontal padding inside bubble
-    int bubblePaddingY = 14; // Vertical padding inside bubble
-    int bubbleRadius = 18; // Rounded corner radius
-    int maxBubbleWidth = (int)((windowWidth_ - 2 * messageMarginX) * 0.75); // Max 75% of available width
-    
-    // Font for messages
-    HFONT hMessageFont = CreateFontW(-22, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HFONT hAIMessageFont = CreateFontW(-24, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HFONT hMetaFont = CreateFontW(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HGDIOBJ oldFont = SelectObject(hdc, hMessageFont);
-    
-    SetBkMode(hdc, TRANSPARENT);
-    
-    // Calculate total height needed for all messages
-    int totalHeight = 0;
-    for (const auto& msg : messages_) {
-        RECT textRect = {0, 0, maxBubbleWidth - 2 * bubblePaddingX, 0};
-        DrawTextW(hdc, msg.text.c_str(), -1, &textRect, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
-        totalHeight += textRect.bottom + 2 * bubblePaddingY + messageMarginY;
-    }
-    
-    // Auto-scroll to bottom (show latest messages)
-    int availableHeight = messageAreaBottom - messageAreaTop;
-    if (totalHeight > availableHeight) {
-        scrollOffset_ = totalHeight - availableHeight;
-    } else {
-        scrollOffset_ = 0;
-    }
-    
-    int currentY = messageAreaTop - scrollOffset_;
-    
-    // Draw messages from oldest to newest
-    for (const auto& msg : messages_) {
-        if (currentY > messageAreaBottom) break; // Skip messages below visible area
-        if (currentY + 50 < messageAreaTop) { // Skip messages above visible area
-            // Estimate height and continue
-            RECT testRect = {0, 0, maxBubbleWidth - 2 * bubblePaddingX, 0};
-            DrawTextW(hdc, msg.text.c_str(), -1, &testRect, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
-            currentY += testRect.bottom + 2 * bubblePaddingY + messageMarginY;
-            continue;
-        }
-        
-        // Calculate text size
-        RECT textRect = {0, 0, maxBubbleWidth - 2 * bubblePaddingX, 0};
-        DrawTextW(hdc, msg.text.c_str(), -1, &textRect, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
-        int textWidth = textRect.right;
-        int textHeight = textRect.bottom;
-        
-        int bubbleWidth = textWidth + 2 * bubblePaddingX;
-        int bubbleHeight = textHeight + 2 * bubblePaddingY + 16; // space for timestamp
-        
-        RECT bubbleRect;
-        RECT textDrawRect;
-
-        // Avatar circle
-        int avatarSize = 20;
-        int avatarMargin = 8;
-        int bubbleOffsetX = avatarSize + avatarMargin;
-
-        if (msg.isUser) {
-            bubbleRect.left = windowWidth_ - messageMarginX - bubbleWidth;
-            bubbleRect.right = windowWidth_ - messageMarginX;
-            bubbleRect.top = currentY;
-            bubbleRect.bottom = currentY + bubbleHeight;
-
-            // Bubble colors
-            HBRUSH bubbleBrush = CreateSolidBrush(RGB(30, 37, 61));
-            HPEN bubblePen = CreatePen(PS_SOLID, 1, RGB(65, 78, 110));
-            HGDIOBJ oldBrush = SelectObject(hdc, bubbleBrush);
-            HGDIOBJ oldPen = SelectObject(hdc, bubblePen);
-            RoundRect(hdc, bubbleRect.left, bubbleRect.top, bubbleRect.right, bubbleRect.bottom, 
-                     bubbleRadius, bubbleRadius);
-            SelectObject(hdc, oldBrush);
-            SelectObject(hdc, oldPen);
-            DeleteObject(bubbleBrush);
-            DeleteObject(bubblePen);
-
-            // Text
-            SetTextColor(hdc, RGB(236, 240, 255));
-            textDrawRect = bubbleRect;
-            textDrawRect.left += bubblePaddingX;
-            textDrawRect.right -= bubblePaddingX;
-            textDrawRect.top += bubblePaddingY;
-            textDrawRect.bottom = textDrawRect.top + textHeight;
-            DrawTextW(hdc, msg.text.c_str(), -1, &textDrawRect, DT_LEFT | DT_WORDBREAK);
-
-            // Timestamp
-            SelectObject(hdc, hMetaFont);
-            SetTextColor(hdc, RGB(154, 163, 195));
-            RECT metaRect = textDrawRect;
-            metaRect.top = textDrawRect.bottom + 4;
-            metaRect.bottom = bubbleRect.bottom - bubblePaddingY + 2;
-            DrawTextW(hdc, msg.timestamp.c_str(), -1, &metaRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-
-            // Avatar (right)
-            HBRUSH avatarBrush = CreateSolidBrush(RGB(74, 215, 255));
-            HPEN avatarPen = CreatePen(PS_NULL, 0, RGB(74, 215, 255));
-            oldBrush = SelectObject(hdc, avatarBrush);
-            oldPen = SelectObject(hdc, avatarPen);
-            int ax = bubbleRect.right + avatarMargin;
-            int ay = bubbleRect.top + 4;
-            Ellipse(hdc, ax, ay, ax + avatarSize, ay + avatarSize);
-            SelectObject(hdc, oldBrush);
-            SelectObject(hdc, oldPen);
-            DeleteObject(avatarBrush);
-            DeleteObject(avatarPen);
-        } else {
-            // AI message: left-aligned glass bubble
-            SelectObject(hdc, hAIMessageFont);
-            RECT aiTextRect = {0, 0, maxBubbleWidth - 2 * bubblePaddingX, 0};
-            DrawTextW(hdc, msg.text.c_str(), -1, &aiTextRect, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
-            textWidth = aiTextRect.right;
-            textHeight = aiTextRect.bottom;
-            bubbleWidth = textWidth + 2 * bubblePaddingX;
-            bubbleHeight = textHeight + 2 * bubblePaddingY + 16;
-
-            bubbleRect.left = messageMarginX + bubbleOffsetX;
-            bubbleRect.right = bubbleRect.left + bubbleWidth;
-            bubbleRect.top = currentY;
-            bubbleRect.bottom = currentY + bubbleHeight;
-
-            HBRUSH bubbleBrush = CreateSolidBrush(RGB(24, 32, 48));
-            HPEN bubblePen = CreatePen(PS_SOLID, 1, RGB(74, 215, 255));
-            HGDIOBJ oldBrush = SelectObject(hdc, bubbleBrush);
-            HGDIOBJ oldPen = SelectObject(hdc, bubblePen);
-            RoundRect(hdc, bubbleRect.left, bubbleRect.top, bubbleRect.right, bubbleRect.bottom,
-                      bubbleRadius, bubbleRadius);
-            SelectObject(hdc, oldBrush);
-            SelectObject(hdc, oldPen);
-            DeleteObject(bubbleBrush);
-            DeleteObject(bubblePen);
-
-            // Avatar (left)
-            HBRUSH avatarBrush = CreateSolidBrush(RGB(154, 107, 255));
-            HPEN avatarPen = CreatePen(PS_NULL, 0, RGB(154, 107, 255));
-            oldBrush = SelectObject(hdc, avatarBrush);
-            oldPen = SelectObject(hdc, avatarPen);
-            int ax = messageMarginX;
-            int ay = bubbleRect.top + 4;
-            Ellipse(hdc, ax, ay, ax + avatarSize, ay + avatarSize);
-            SelectObject(hdc, oldBrush);
-            SelectObject(hdc, oldPen);
-            DeleteObject(avatarBrush);
-            DeleteObject(avatarPen);
-
-            // Text
-            SetTextColor(hdc, RGB(232, 236, 255));
-            textDrawRect = bubbleRect;
-            textDrawRect.left += bubblePaddingX;
-            textDrawRect.right -= bubblePaddingX;
-            textDrawRect.top += bubblePaddingY;
-            textDrawRect.bottom = textDrawRect.top + textHeight;
-            DrawTextW(hdc, msg.text.c_str(), -1, &textDrawRect, DT_LEFT | DT_WORDBREAK);
-
-            // Timestamp
-            SelectObject(hdc, hMetaFont);
-            SetTextColor(hdc, RGB(154, 163, 195));
-            RECT metaRect = textDrawRect;
-            metaRect.top = textDrawRect.bottom + 4;
-            metaRect.bottom = bubbleRect.bottom - bubblePaddingY + 2;
-            DrawTextW(hdc, msg.timestamp.c_str(), -1, &metaRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-        }
-        
-        currentY += bubbleHeight + messageMarginY;
-    }
-    
-    SelectObject(hdc, oldFont);
-    DeleteObject(hMessageFont);
-    DeleteObject(hAIMessageFont);
-    DeleteObject(hMetaFont);
-}
-
-
 void MainWindow::OnSize() {
     RECT clientRect;
     GetClientRect(hwnd_, &clientRect);
@@ -207,12 +11,17 @@ void MainWindow::OnSize() {
     // Layout input:
     // - Khi chưa có message: input nằm giữa màn hình, ngay dưới dòng title
     // - Khi đã có message: input nằm sát cạnh dưới
-    // - Khi đang animate: dùng animCurrentY_ (di chuyển dần từ giữa -> dưới)
-    bool initialLayout = messages_.empty() && !isAnimating_;
+    // - Khi đang animate: dùng animCurrentY (di chuyển dần từ giữa -> dưới)
+    bool initialLayout = chatViewState_.messages.empty() && !chatViewState_.isAnimating;
 
-    int inputWidth = static_cast<int>(windowWidth_ * 0.7);
+    // Main content area: when sidebar hiển thị thì phần nội dung bắt đầu từ sidebarWidth_
+    int contentLeft = sidebarVisible_ ? sidebarWidth_ : 0;
+    int contentWidth = windowWidth_ - contentLeft;
+    if (contentWidth < 0) contentWidth = 0;
+
+    int inputWidth = static_cast<int>(contentWidth * 0.7);
     int inputHeight = 60;
-    int inputX = (windowWidth_ - inputWidth) / 2;
+    int inputX = contentLeft + (contentWidth - inputWidth) / 2;
     int inputY;
 
     int centerY = windowHeight_ / 2 + 40;
@@ -221,20 +30,20 @@ void MainWindow::OnSize() {
         centerY = bottomY; // fallback nếu cửa sổ quá nhỏ
     }
 
-    if (isAnimating_) {
-        animTargetY_ = bottomY;
+    if (chatViewState_.isAnimating) {
+        chatViewState_.animTargetY = bottomY;
         // Giữ currentY trong khoảng [centerY, bottomY]
-        if (animCurrentY_ < centerY) animCurrentY_ = centerY;
-        if (animCurrentY_ > bottomY) animCurrentY_ = bottomY;
-        inputY = animCurrentY_;
+        if (chatViewState_.animCurrentY < centerY) chatViewState_.animCurrentY = centerY;
+        if (chatViewState_.animCurrentY > bottomY) chatViewState_.animCurrentY = bottomY;
+        inputY = chatViewState_.animCurrentY;
     } else if (initialLayout) {
         inputY = centerY;
-        animCurrentY_ = inputY;
-        animTargetY_ = inputY;
+        chatViewState_.animCurrentY = inputY;
+        chatViewState_.animTargetY = inputY;
     } else {
         inputY = bottomY;
-        animCurrentY_ = inputY;
-        animTargetY_ = inputY;
+        chatViewState_.animCurrentY = inputY;
+        chatViewState_.animTargetY = inputY;
     }
     
     inputRect_.left = inputX;
@@ -252,6 +61,12 @@ void MainWindow::OnSize() {
     int buttonX = inputRect_.right - buttonMarginRight - buttonSize;
     int buttonY = inputY + (inputHeight - buttonSize) / 2;
 
+    // Update logical send button rect (custom drawn, không dùng child window để tránh nhấp nháy)
+    sendButtonRect_.left   = buttonX;
+    sendButtonRect_.top    = buttonY;
+    sendButtonRect_.right  = buttonX + buttonSize;
+    sendButtonRect_.bottom = buttonY + buttonSize;
+
     int editX = inputX + inputPaddingX;
     int editWidth = buttonX - gapTextToButton - editX;
 
@@ -263,15 +78,22 @@ void MainWindow::OnSize() {
                      SWP_NOZORDER);
     }
 
-    // Update send button position (keep aligned inside the right of input field)
-    if (hSendButton_) {
-        SetWindowPos(hSendButton_, NULL,
-                     buttonX, buttonY,
-                     buttonSize, buttonSize,
-                     SWP_NOZORDER);
+    // Cập nhật rect cho nút "Chat Mới" trong sidebar (vẽ custom, không dùng child window)
+    {
+        int headerH = theme_.headerHeight;
+        int marginX = 16;
+        int marginY = 12;
+        int newBtnHeight = 34;
+        int newBtnWidth = sidebarWidth_ - marginX * 2;
+        if (newBtnWidth < 140) newBtnWidth = 140; // minimal width for readability
+        newSessionButtonRect_.left = marginX;
+        newSessionButtonRect_.top = headerH + marginY;
+        newSessionButtonRect_.right = newSessionButtonRect_.left + newBtnWidth;
+        newSessionButtonRect_.bottom = newSessionButtonRect_.top + newBtnHeight;
     }
     
-    InvalidateRect(hwnd_, NULL, TRUE);
+    // Redraw without erasing background to avoid flicker
+    InvalidateRect(hwnd_, NULL, FALSE);
 }
 
 void MainWindow::OnCreate() {
@@ -294,11 +116,16 @@ void MainWindow::OnCreate() {
     int height = clientRect.bottom - clientRect.top;
     
     // Layout ban đầu giống OnSize: xét theo việc đã có message hay chưa và trạng thái animate
-    bool initialLayout = messages_.empty() && !isAnimating_;
+    bool initialLayout = chatViewState_.messages.empty() && !chatViewState_.isAnimating;
 
-    int inputWidth = static_cast<int>(width * 0.7); // 70% of window width
+    // Main content area: khi có sidebar thì nội dung chính bắt đầu từ sidebarWidth_
+    int contentLeft = sidebarVisible_ ? sidebarWidth_ : 0;
+    int contentWidth = width - contentLeft;
+    if (contentWidth < 0) contentWidth = 0;
+
+    int inputWidth = static_cast<int>(contentWidth * 0.7); // 70% of main content width
     int inputHeight = 60;
-    int inputX = (width - inputWidth) / 2;
+    int inputX = contentLeft + (contentWidth - inputWidth) / 2;
     int inputY;
 
     int centerY = height / 2 + 40;
@@ -307,18 +134,18 @@ void MainWindow::OnCreate() {
         centerY = bottomY;
     }
 
-    if (isAnimating_) {
-        animCurrentY_ = centerY;
-        animTargetY_ = bottomY;
-        inputY = animCurrentY_;
+    if (chatViewState_.isAnimating) {
+        chatViewState_.animCurrentY = centerY;
+        chatViewState_.animTargetY = bottomY;
+        inputY = chatViewState_.animCurrentY;
     } else if (initialLayout) {
         inputY = centerY;
-        animCurrentY_ = inputY;
-        animTargetY_ = inputY;
+        chatViewState_.animCurrentY = inputY;
+        chatViewState_.animTargetY = inputY;
     } else {
         inputY = bottomY;
-        animCurrentY_ = inputY;
-        animTargetY_ = inputY;
+        chatViewState_.animCurrentY = inputY;
+        chatViewState_.animTargetY = inputY;
     }
     
     inputRect_.left = inputX;
@@ -335,6 +162,12 @@ void MainWindow::OnCreate() {
     int buttonSize = inputHeight - 16; // slightly smaller than input rect height
     int buttonX = inputRect_.right - buttonMarginRight - buttonSize;
     int buttonY = inputY + (inputHeight - buttonSize) / 2;
+
+    // Initialize logical send button rect
+    sendButtonRect_.left   = buttonX;
+    sendButtonRect_.top    = buttonY;
+    sendButtonRect_.right  = buttonX + buttonSize;
+    sendButtonRect_.bottom = buttonY + buttonSize;
 
     int editX = inputX + inputPaddingX;
     int editWidth = buttonX - gapTextToButton - editX;
@@ -369,19 +202,27 @@ void MainWindow::OnCreate() {
     // Clear initial text (Unicode-safe)
     SetWindowTextW(hChatInput_, L"");
 
-    // Create send button inside the input field, aligned to the right
-    hSendButton_ = CreateWindowW(
-        L"BUTTON", L"", // we'll draw the arrow ourselves
-        WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-        buttonX, buttonY, buttonSize, buttonSize,
-        hwnd_, (HMENU)1003, hInst, NULL);
-
-    if (hSendButton_) {
-        SendMessage(hSendButton_, WM_SETFONT, (WPARAM)hInputFont_, TRUE);
+    // Khởi tạo rect cho nút "Chat Mới" trong sidebar (vẽ custom, không tạo child window)
+    {
+        int headerH = theme_.headerHeight;
+        int marginX = 16;
+        int marginY = 12;
+        int newBtnHeight = 34;
+        int newBtnWidth = sidebarWidth_ - marginX * 2;
+        if (newBtnWidth < 140) newBtnWidth = 140;
+        newSessionButtonRect_.left = marginX;
+        newSessionButtonRect_.top = headerH + marginY;
+        newSessionButtonRect_.right = newSessionButtonRect_.left + newBtnWidth;
+        newSessionButtonRect_.bottom = newSessionButtonRect_.top + newBtnHeight;
     }
     
     // Update window
     UpdateWindow(hwnd_);
+    
+    // Start health check timer (check every 10 seconds)
+    healthCheckTimerId_ = SetTimer(hwnd_, 2, 10000, NULL);
+    // Initial health check
+    CheckHealthStatus();
     
     // Delayed initialization
     PostMessage(hwnd_, WM_USER + 1, 0, 0);
