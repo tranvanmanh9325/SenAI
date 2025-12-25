@@ -1,4 +1,5 @@
 #include "HttpClient.h"
+#include "JsonParser.h"
 #include <windows.h>
 #include <wininet.h>
 #include <sstream>
@@ -6,6 +7,7 @@
 #include <fstream>
 #include <chrono>
 #include <ctime>
+#include <nlohmann/json.hpp>
 
 #pragma comment(lib, "wininet.lib")
 
@@ -34,27 +36,6 @@ namespace {
 HttpClient::HttpClient(const std::string& baseUrl, const std::string& apiKey) 
     : baseUrl_(baseUrl), apiKey_(apiKey) {}
 
-std::string HttpClient::escapeJson(const std::string& str) {
-    std::ostringstream o;
-    for (size_t i = 0; i < str.length(); ++i) {
-        switch (str[i]) {
-            case '"': o << "\\\""; break;
-            case '\\': o << "\\\\"; break;
-            case '\b': o << "\\b"; break;
-            case '\f': o << "\\f"; break;
-            case '\n': o << "\\n"; break;
-            case '\r': o << "\\r"; break;
-            case '\t': o << "\\t"; break;
-            default:
-                if ('\x00' <= str[i] && str[i] <= '\x1f') {
-                    o << "\\u" << std::hex << std::setw(4) << std::setfill('0') << (int)str[i];
-                } else {
-                    o << str[i];
-                }
-        }
-    }
-    return o.str();
-}
 
 std::string HttpClient::buildHeaders() {
     std::ostringstream headers;
@@ -273,112 +254,42 @@ std::string HttpClient::checkHealth() {
     return httpGet("/health");
 }
 
-std::string HttpClient::extractJsonField(const std::string& json, const std::string& fieldName) {
-    // Improved JSON parser để extract field value
-    // Tìm pattern: "fieldName": (có thể có khoảng trắng)
-    std::string searchPattern = "\"" + fieldName + "\"";
-   size_t pos = json.find(searchPattern);
-    if (pos == std::string::npos) {
-        return ""; // Field not found
-    }
-    
-    // Tìm dấu hai chấm sau field name
-    pos += searchPattern.length();
-    // Bỏ qua khoảng trắng
-    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t')) {
-        pos++;
-    }
-    
-    if (pos >= json.length() || json[pos] != ':') {
-        return ""; // No colon found
-    }
-    pos++; // Skip colon
-    
-    // Bỏ qua khoảng trắng sau dấu hai chấm
-    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t')) {
-        pos++;
-    }
-    
-    if (pos >= json.length()) {
-        return ""; // End of string
-    }
-    
-    // Kiểm tra nếu giá trị là null
-    if (json.substr(pos, 4) == "null") {
-        return ""; // Return empty string for null
-    }
-    
-    // Kiểm tra nếu giá trị là string (bắt đầu bằng dấu nháy kép)
-    if (json[pos] != '"') {
-        return ""; // Not a string value
-    }
-    pos++; // Skip opening quote
-    
-    // Tìm vị trí kết thúc của value (dấu nháy kép tiếp theo, nhưng không phải escaped)
-    std::string result;
-    bool escaped = false;
-    for (size_t i = pos; i < json.length(); ++i) {
-        char c = json[i];
-        if (escaped) {
-            if (c == 'n') result += '\n';
-            else if (c == 'r') result += '\r';
-            else if (c == 't') result += '\t';
-            else if (c == '\\') result += '\\';
-            else if (c == '"') result += '"';
-            else if (c == 'u') {
-                // Handle \uXXXX unicode escape sequences
-                if (i + 4 < json.length()) {
-                    // Simple handling: just skip the unicode sequence for now
-                    // In a full implementation, you'd parse the hex digits
-                    i += 4;
-                }
-            } else {
-                result += c;
-            }
-            escaped = false;
-        } else {
-            if (c == '\\') {
-                escaped = true;
-            } else if (c == '"') {
-                break; // End of string value
-            } else {
-                result += c;
-            }
-        }
-    }
-    
-    return result;
-}
 
 std::string HttpClient::sendMessage(const std::string& message, const std::string& sessionId) {
-    std::ostringstream json;
-    json << "{\"user_message\":\"" << escapeJson(message) << "\"";
-    if (!sessionId.empty()) {
-        json << ",\"session_id\":\"" << escapeJson(sessionId) << "\"";
+    try {
+        // Build JSON using nlohmann/json for proper escaping
+        nlohmann::json json;
+        json["user_message"] = message;
+        if (!sessionId.empty()) {
+            json["session_id"] = sessionId;
+        }
+        std::string jsonStr = json.dump();
+        
+        std::string response = httpPost("/conversations", jsonStr);
+        
+        // Check if response is an error
+        if (response.find("Error:") == 0) {
+            return response; // Return error message as-is
+        }
+        
+        // Extract ai_response từ JSON response using JsonParser
+        std::string aiResponse = JsonParser::GetString(response, "ai_response");
+        if (!aiResponse.empty()) {
+            return aiResponse;
+        }
+        
+        // Nếu không tìm thấy ai_response, kiểm tra xem có phải là error response không
+        std::string errorDetail = JsonParser::GetString(response, "detail");
+        if (!errorDetail.empty()) {
+            return "Error: " + errorDetail;
+        }
+        
+        // Nếu vẫn không tìm thấy, trả về toàn bộ response để debug (fallback)
+        // Trong production, có thể muốn return empty string hoặc error message
+        return response;
+    } catch (const std::exception& e) {
+        return "Error: Failed to send message - " + std::string(e.what());
     }
-    json << "}";
-    std::string response = httpPost("/conversations", json.str());
-    
-    // Check if response is an error
-    if (response.find("Error:") == 0) {
-        return response; // Return error message as-is
-    }
-    
-    // Extract ai_response từ JSON response
-    std::string aiResponse = extractJsonField(response, "ai_response");
-    if (!aiResponse.empty()) {
-        return aiResponse;
-    }
-    
-    // Nếu không tìm thấy ai_response, kiểm tra xem có phải là error response không
-    std::string errorDetail = extractJsonField(response, "detail");
-    if (!errorDetail.empty()) {
-        return "Error: " + errorDetail;
-    }
-    
-    // Nếu vẫn không tìm thấy, trả về toàn bộ response để debug (fallback)
-    // Trong production, có thể muốn return empty string hoặc error message
-    return response;
 }
 
 std::string HttpClient::getConversations(const std::string& sessionId) {
@@ -390,13 +301,16 @@ std::string HttpClient::getConversations(const std::string& sessionId) {
 }
 
 std::string HttpClient::createTask(const std::string& taskName, const std::string& description) {
-    std::ostringstream json;
-    json << "{\"task_name\":\"" << escapeJson(taskName) << "\"";
-    if (!description.empty()) {
-        json << ",\"description\":\"" << escapeJson(description) << "\"";
+    try {
+        nlohmann::json json;
+        json["task_name"] = taskName;
+        if (!description.empty()) {
+            json["description"] = description;
+        }
+        return httpPost("/tasks", json.dump());
+    } catch (const std::exception& e) {
+        return "Error: Failed to create task - " + std::string(e.what());
     }
-    json << "}";
-    return httpPost("/tasks", json.str());
 }
 
 std::string HttpClient::getTasks() {

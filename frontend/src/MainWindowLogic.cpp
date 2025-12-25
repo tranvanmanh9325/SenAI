@@ -1,5 +1,6 @@
 #include <windows.h>
 #include "MainWindow.h"
+#include "JsonParser.h"
 #include <sstream>
 #include <string>
 #include <fstream>
@@ -22,24 +23,10 @@ namespace {
         std::string dir = (pos == std::string::npos) ? "" : exePath.substr(0, pos + 1);
         return dir + "senai_frontend.config.json";
     }
-    
-    std::string ExtractJsonStringField(const std::string& json, const std::string& field) {
-        std::string key = "\"" + field + "\"";
-        size_t pos = json.find(key);
-        if (pos == std::string::npos) return "";
-        pos = json.find(':', pos);
-        if (pos == std::string::npos) return "";
-        pos = json.find('"', pos);
-        if (pos == std::string::npos) return "";
-        size_t end = json.find('"', pos + 1);
-        if (end == std::string::npos) return "";
-        return json.substr(pos + 1, end - pos - 1);
-    }
 }
 MainWindow::MainWindow() 
     : hwnd_(NULL), hInstance_(NULL), sessionId_("default_session"),
-      hDarkBrush_(NULL), hInputBrush_(NULL), hInputPen_(NULL),
-      hTitleFont_(NULL), hInputFont_(NULL),
+      // GDI objects are initialized as smart pointers (default to nullptr)
       windowWidth_(900), windowHeight_(700),
       hChatInput_(NULL), hChatHistory_(NULL), hSendButton_(NULL), hNewSessionButton_(NULL),
       originalEditProc_(NULL),
@@ -47,6 +34,9 @@ MainWindow::MainWindow()
       isSendButtonHover_(false), isNewSessionButtonHover_(false), sidebarVisible_(true),
       healthStatus_(HealthStatus::Checking), healthCheckTimerId_(0),
       isSettingsIconHover_(false), hoveredMessageIndex_(-1),
+      hoveredCopyIconIndex_(-1), copiedMessageIndex_(-1), copyFeedbackTimerId_(0),
+      hTooltipWindow_(NULL), tooltipMessageIndex_(-1),
+      enableCtrlEnterToSend_(true), lastClickTime_(0), lastClickIndex_(-1),
       modelName_(L"") {
     configPath_ = GetConfigPath();
     // Generate session ID
@@ -72,11 +62,12 @@ MainWindow::MainWindow()
 }
 
 MainWindow::~MainWindow() {
-    if (hDarkBrush_) DeleteObject(hDarkBrush_);
-    if (hInputBrush_) DeleteObject(hInputBrush_);
-    if (hInputPen_) DeleteObject(hInputPen_);
-    if (hTitleFont_) DeleteObject(hTitleFont_);
-    if (hInputFont_) DeleteObject(hInputFont_);
+    HideMessageTooltip();
+    if (copyFeedbackTimerId_ && hwnd_) {
+        KillTimer(hwnd_, copyFeedbackTimerId_);
+    }
+    // Smart pointers will automatically clean up GDI objects
+    // No manual DeleteObject needed
     if (healthCheckTimerId_ && hwnd_) {
         KillTimer(hwnd_, healthCheckTimerId_);
     }
@@ -153,7 +144,7 @@ void MainWindow::SendChatMessage() {
     AddUserMessage(wmessage);
 
     // Thêm bubble trạng thái "AI đang trả lời..." để user thấy ngay
-    AddInfoMessage(L"AI đang trả lời…");
+    AddInfoMessage(UiStrings::Get(IDS_AI_LOADING_MESSAGE));
 
     // Giữ view ở cuối và vẽ lại ngay để hiện bubble loading
     InvalidateRect(hwnd_, NULL, FALSE);
@@ -174,16 +165,16 @@ void MainWindow::SendChatMessage() {
         std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c){ return (char)std::tolower(c); });
 
         if (lower.find("timeout") != std::string::npos || lower.find("timed out") != std::string::npos) {
-            aiText = L"Yêu cầu đến server mất quá nhiều thời gian. Vui lòng kiểm tra kết nối mạng hoặc thử lại sau.\r\n"
-                     L"Chi tiết kỹ thuật: " + Utf8ToWide(response);
+            aiText = UiStrings::Get(IDS_ERROR_TIMEOUT) + L"\r\n"
+                     + UiStrings::Get(IDS_ERROR_TECHNICAL_DETAILS) + Utf8ToWide(response);
         } else {
-            aiText = L"Đã xảy ra lỗi khi gọi backend. Bạn hãy thử lại sau hoặc kiểm tra server.\r\n"
-                     L"Chi tiết kỹ thuật: " + Utf8ToWide(response);
+            aiText = UiStrings::Get(IDS_ERROR_BACKEND) + L"\r\n"
+                     + UiStrings::Get(IDS_ERROR_TECHNICAL_DETAILS) + Utf8ToWide(response);
         }
     } else {
         aiText = Utf8ToWide(response);
         if (aiText.empty()) {
-            aiText = L"(Backend không trả về nội dung.)";
+            aiText = UiStrings::Get(IDS_BACKEND_NO_CONTENT);
         }
         metadata.rawJson = response;
     }
@@ -225,28 +216,35 @@ void MainWindow::LoadSettingsFromFile() {
     in.close();
     if (content.empty()) return;
     
-    std::string baseUrl = ExtractJsonStringField(content, "baseUrl");
-    std::string apiKey = ExtractJsonStringField(content, "apiKey");
+    std::string baseUrl = JsonParser::GetString(content, "baseUrl");
+    std::string apiKey = JsonParser::GetString(content, "apiKey");
     if (!baseUrl.empty()) {
         httpClient_.setBaseUrl(baseUrl);
     }
     if (!apiKey.empty()) {
         httpClient_.setApiKey(apiKey);
     }
+    
+    // Load Ctrl+Enter setting
+    std::string ctrlEnterStr = JsonParser::GetString(content, "ctrlEnterToSend");
+    if (!ctrlEnterStr.empty()) {
+        enableCtrlEnterToSend_ = (ctrlEnterStr == "true" || ctrlEnterStr == "1");
+    }
 }
 
-void MainWindow::SaveSettingsToFile(const std::string& baseUrl, const std::string& apiKey) {
+void MainWindow::SaveSettingsToFile(const std::string& baseUrl, const std::string& apiKey, bool ctrlEnterEnabled) {
     std::ofstream out(configPath_, std::ios::trunc);
     if (!out.is_open()) return;
     out << "{\n"
         << "  \"baseUrl\": \"" << baseUrl << "\",\n"
-        << "  \"apiKey\": \"" << apiKey << "\"\n"
+        << "  \"apiKey\": \"" << apiKey << "\",\n"
+        << "  \"ctrlEnterToSend\": \"" << (ctrlEnterEnabled ? "true" : "false") << "\"\n"
         << "}\n";
     out.close();
 }
 
 void MainWindow::UpdateModelNameFromHealth(const std::string& healthJson) {
-    std::string model = ExtractJsonStringField(healthJson, "model");
+    std::string model = JsonParser::GetString(healthJson, "model");
     if (!model.empty()) {
         modelName_ = Utf8ToWide(model);
     }

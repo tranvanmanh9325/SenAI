@@ -36,7 +36,5 @@ private:
     std::string httpGet(const std::string& endpoint);
     std::string httpPost(const std::string& endpoint, const std::string& jsonData);
     std::string httpPut(const std::string& endpoint, const std::string& jsonData);
-    std::string escapeJson(const std::string& str);
     std::string buildHeaders();
-    std::string extractJsonField(const std::string& json, const std::string& fieldName);
 };

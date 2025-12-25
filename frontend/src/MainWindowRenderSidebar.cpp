@@ -16,18 +16,18 @@ void MainWindow::DrawSidebar(HDC hdc) {
     
     RECT sidebarRect = {sidebarX, sidebarY, sidebarX + sidebarW, sidebarY + sidebarH};
     
-    // Background
-    HBRUSH sidebarBrush = CreateSolidBrush(RGB(12, 18, 32));
-    FillRect(hdc, &sidebarRect, sidebarBrush);
-    DeleteObject(sidebarBrush);
+    // Background - use resource manager
+    auto sidebarBrush = gdiManager_->CreateSolidBrush(RGB(12, 18, 32));
+    FillRect(hdc, &sidebarRect, sidebarBrush->Get());
+    // Smart pointer automatically cleans up
     
-    // Border on right
-    HPEN borderPen = CreatePen(PS_SOLID, 1, RGB(40, 50, 70));
-    HGDIOBJ oldPen = SelectObject(hdc, borderPen);
+    // Border on right - use resource manager
+    auto borderPen = gdiManager_->CreatePen(PS_SOLID, 1, RGB(40, 50, 70));
+    HGDIOBJ oldPen = SelectObject(hdc, borderPen->Get());
     MoveToEx(hdc, sidebarRect.right - 1, sidebarRect.top, NULL);
     LineTo(hdc, sidebarRect.right - 1, sidebarRect.bottom);
     SelectObject(hdc, oldPen);
-    DeleteObject(borderPen);
+    // Smart pointer automatically cleans up
     
     // Vẽ nút "Chat Mới" phía trên title (custom draw, không dùng child window để tránh nhấp nháy)
     if (newSessionButtonRect_.right > newSessionButtonRect_.left &&
@@ -38,19 +38,17 @@ void MainWindow::DrawSidebar(HDC hdc) {
     // Title
     SetBkMode(hdc, TRANSPARENT);
     SetTextColor(hdc, RGB(200, 210, 230));
-    HFONT titleFont = CreateFontW(-18, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HFONT oldFont = (HFONT)SelectObject(hdc, titleFont);
+    // Use cached sidebar title font
+    HFONT oldFont = (HFONT)SelectObject(hdc, hSidebarTitleFont_->Get());
     
     int titleTop = newSessionButtonRect_.bottom > 0
         ? newSessionButtonRect_.bottom + 12
         : sidebarY + 12;
     RECT titleRect = {sidebarX + 16, titleTop, sidebarRect.right - 16, titleTop + 28};
-    DrawTextW(hdc, L"Lịch sử", -1, &titleRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    DrawTextW(hdc, UiStrings::Get(IDS_SIDEBAR_HISTORY_TITLE).c_str(), -1, &titleRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     
     SelectObject(hdc, oldFont);
-    DeleteObject(titleFont);
+    // Font is managed by smart pointer
     
     // List conversations
     int itemHeight = 75;  // Tăng chiều cao item một chút
@@ -63,12 +61,7 @@ void MainWindow::DrawSidebar(HDC hdc) {
     int visibleHeight = contentBottom - contentTop;
     if (visibleHeight < 0) visibleHeight = 0;
     
-    HFONT itemFont = CreateFontW(-16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HFONT metaFont = CreateFontW(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    // Use cached sidebar fonts
     
     int currentY = startY - sidebarScrollOffset_;
 
@@ -99,54 +92,52 @@ void MainWindow::DrawSidebar(HDC hdc) {
         // Background với màu tối hơn cho selected/hover đồng bộ UI (không dùng nền trắng)
         COLORREF bgColor = isSelected ? RGB(24, 35, 55)
                            : (isHovered ? RGB(22, 30, 46) : RGB(18, 26, 40));
-        HBRUSH itemBrush = CreateSolidBrush(bgColor);
-        FillRect(hdc, &itemRect, itemBrush);
-        DeleteObject(itemBrush);
+        auto itemBrush = gdiManager_->CreateSolidBrush(bgColor);
+        FillRect(hdc, &itemRect, itemBrush->Get());
+        // Smart pointer automatically cleans up
         
         // Border highlight cho selected item với màu cyan đồng bộ theme
         if (isSelected) {
             // Vẽ border với màu cyan glow
-            HPEN highlightPen = CreatePen(PS_SOLID, 2, theme_.colorHeaderLine);
-            HGDIOBJ oldPen2 = SelectObject(hdc, highlightPen);
+            auto highlightPen = gdiManager_->CreatePen(PS_SOLID, 2, theme_.colorHeaderLine);
+            HGDIOBJ oldPen2 = SelectObject(hdc, highlightPen->Get());
             RoundRect(hdc, itemRect.left, itemRect.top, itemRect.right, itemRect.bottom, 10, 10);
             SelectObject(hdc, oldPen2);
-            DeleteObject(highlightPen);
+            // Smart pointer automatically cleans up
             
             // Thêm một lớp nền nhẹ với màu cyan để tạo glow effect
             RECT glowRect = itemRect;
             InflateRect(&glowRect, -2, -2);
-            HBRUSH glowBrush = CreateSolidBrush(RGB(20, 50, 80));
-            HPEN glowPen = CreatePen(PS_SOLID, 1, RGB(40, 100, 140));
-            HGDIOBJ oldGlowBrush = SelectObject(hdc, glowBrush);
-            HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen);
+            auto glowBrush = gdiManager_->CreateSolidBrush(RGB(20, 50, 80));
+            auto glowPen = gdiManager_->CreatePen(PS_SOLID, 1, RGB(40, 100, 140));
+            HGDIOBJ oldGlowBrush = SelectObject(hdc, glowBrush->Get());
+            HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen->Get());
             RoundRect(hdc, glowRect.left, glowRect.top, glowRect.right, glowRect.bottom, 8, 8);
             SelectObject(hdc, oldGlowBrush);
             SelectObject(hdc, oldGlowPen);
-            DeleteObject(glowBrush);
-            DeleteObject(glowPen);
+            // Smart pointers automatically clean up
         } else if (isHovered) {
             // Subtle border and glow on hover (cyan tint, no white)
-            HPEN hoverPen = CreatePen(PS_SOLID, 1, RGB(70, 140, 200));
-            HGDIOBJ oldPen2 = SelectObject(hdc, hoverPen);
+            auto hoverPen = gdiManager_->CreatePen(PS_SOLID, 1, RGB(70, 140, 200));
+            HGDIOBJ oldPen2 = SelectObject(hdc, hoverPen->Get());
             RoundRect(hdc, itemRect.left, itemRect.top, itemRect.right, itemRect.bottom, 10, 10);
             SelectObject(hdc, oldPen2);
-            DeleteObject(hoverPen);
+            // Smart pointer automatically cleans up
 
             RECT glowRect = itemRect;
             InflateRect(&glowRect, -3, -3);
-            HBRUSH glowBrush = CreateSolidBrush(RGB(20, 34, 54));
-            HPEN glowPen = CreatePen(PS_SOLID, 1, RGB(50, 100, 150));
-            HGDIOBJ oldGlowBrush = SelectObject(hdc, glowBrush);
-            HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen);
+            auto glowBrush = gdiManager_->CreateSolidBrush(RGB(20, 34, 54));
+            auto glowPen = gdiManager_->CreatePen(PS_SOLID, 1, RGB(50, 100, 150));
+            HGDIOBJ oldGlowBrush = SelectObject(hdc, glowBrush->Get());
+            HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen->Get());
             RoundRect(hdc, glowRect.left, glowRect.top, glowRect.right, glowRect.bottom, 8, 8);
             SelectObject(hdc, oldGlowBrush);
             SelectObject(hdc, oldGlowPen);
-            DeleteObject(glowBrush);
-            DeleteObject(glowPen);
+            // Smart pointers automatically clean up
         }
         
         // Preview text với màu sáng hơn khi selected
-        SelectObject(hdc, itemFont);
+        SelectObject(hdc, hSidebarItemFont_->Get());
         SetTextColor(hdc, isSelected ? RGB(240, 245, 255)
                                      : (isHovered ? RGB(215, 230, 250) : RGB(200, 210, 230)));
         RECT previewRect = itemRect;
@@ -158,7 +149,7 @@ void MainWindow::DrawSidebar(HDC hdc) {
                   DT_LEFT | DT_TOP | DT_WORDBREAK | DT_END_ELLIPSIS);
         
         // Timestamp với màu sáng hơn khi selected
-        SelectObject(hdc, metaFont);
+        SelectObject(hdc, hSidebarMetaFont_->Get());
         SetTextColor(hdc, isSelected ? RGB(160, 200, 240)
                                      : (isHovered ? RGB(150, 180, 210) : RGB(140, 150, 180)));
         RECT timeRect = previewRect;
@@ -171,8 +162,7 @@ void MainWindow::DrawSidebar(HDC hdc) {
     }
     
     SelectObject(hdc, oldFont);
-    DeleteObject(itemFont);
-    DeleteObject(metaFont);
+    // Fonts are managed by smart pointers
     RestoreDC(hdc, savedDC);
 }
 
@@ -195,23 +185,22 @@ void MainWindow::DrawNewSessionButton(HDC hdc, const RECT& rc, bool isPressed) {
         ? RGB(20, 34, 64)
         : RGB(16, 28, 56);
 
-    HPEN pen = CreatePen(PS_SOLID, 1, borderColor);
-    HBRUSH brush = CreateSolidBrush(fillColor);
-    HGDIOBJ oldPen = SelectObject(hdc, pen);
-    HGDIOBJ oldBrush = SelectObject(hdc, brush);
+    auto pen = gdiManager_->CreatePen(PS_SOLID, 1, borderColor);
+    auto brush = gdiManager_->CreateSolidBrush(fillColor);
+    HGDIOBJ oldPen = SelectObject(hdc, pen->Get());
+    HGDIOBJ oldBrush = SelectObject(hdc, brush->Get());
 
     RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, radius, radius);
 
     SelectObject(hdc, oldPen);
     SelectObject(hdc, oldBrush);
-    DeleteObject(pen);
-    DeleteObject(brush);
+    // Smart pointers automatically clean up
 
     // Vẽ text "Chat Mới"
-    const wchar_t* label = L"Chat Mới";
+    const wchar_t* label = UiStrings::Get(IDS_SIDEBAR_NEW_CHAT).c_str();
     SetBkMode(hdc, TRANSPARENT);
     SetTextColor(hdc, RGB(232, 236, 255));
-    HFONT oldFont2 = (HFONT)SelectObject(hdc, hInputFont_);
+    HFONT oldFont2 = (HFONT)SelectObject(hdc, hInputFont_->Get());
 
     RECT textRect = rect;
     DrawTextW(hdc, label, -1, &textRect,
@@ -226,20 +215,20 @@ void MainWindow::DrawStatusBadge(HDC hdc, const RECT& headerRect, RECT* outBadge
     
     switch (healthStatus_) {
         case HealthStatus::Online:
-            statusText = L"Online";
+            statusText = UiStrings::Get(IDS_STATUS_ONLINE).c_str();
             bgColor = RGB(50, 140, 80);      // Xanh
             borderColor = RGB(90, 200, 120);
             textColor = RGB(230, 255, 240);
             break;
         case HealthStatus::Checking:
-            statusText = L"Đang kết nối…";
+            statusText = UiStrings::Get(IDS_STATUS_CHECKING).c_str();
             bgColor = RGB(180, 150, 60);     // Vàng/Xám (amber)
             borderColor = RGB(220, 180, 80);
             textColor = RGB(255, 250, 230);
             break;
         case HealthStatus::Offline:
         default:
-            statusText = L"Offline";
+            statusText = UiStrings::Get(IDS_STATUS_OFFLINE).c_str();
             bgColor = RGB(180, 60, 60);      // Đỏ
             borderColor = RGB(220, 100, 100);
             textColor = RGB(255, 240, 240);
@@ -271,8 +260,7 @@ void MainWindow::DrawStatusBadge(HDC hdc, const RECT& headerRect, RECT* outBadge
     DrawTextW(hdc, statusText, -1, &badgeTextRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hdc, oldBrush);
     SelectObject(hdc, oldPen);
-    DeleteObject(badgeBrush);
-    DeleteObject(badgePen);
+    // Smart pointers automatically clean up
 }
 
 void MainWindow::DrawSettingsIcon(HDC hdc) {
@@ -293,15 +281,15 @@ void MainWindow::DrawSettingsIcon(HDC hdc) {
     COLORREF iconColor = isSettingsIconHover_ ? RGB(120, 230, 255) : RGB(154, 163, 195);
     SetTextColor(hdc, iconColor);
     
-    // Use a larger font for the gear icon
-    HFONT iconFont = CreateFontW(-20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    // Use a larger font for the gear icon - use resource manager
+    auto iconFont = gdiManager_->CreateFont(-20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HFONT oldFont = (HFONT)SelectObject(hdc, iconFont);
+    HFONT oldFont = (HFONT)SelectObject(hdc, iconFont->Get());
     
     RECT iconTextRect = settingsIconRect_;
     DrawTextW(hdc, L"⚙", -1, &iconTextRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     
     SelectObject(hdc, oldFont);
-    DeleteObject(iconFont);
+    // Smart pointer automatically cleans up
 }

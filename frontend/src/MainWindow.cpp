@@ -41,15 +41,18 @@ bool MainWindow::Create(HINSTANCE hInstance) {
         }
     }
     
-    // Create brushes and pens for dark/futuristic theme (using theme config)
-    hDarkBrush_ = CreateSolidBrush(theme_.colorBackground);
-    hInputBrush_ = CreateSolidBrush(theme_.colorInputInner);
-    hInputPen_ = CreatePen(PS_SOLID, 1, theme_.colorInputStroke);
+    // Initialize GDI Resource Manager
+    gdiManager_ = std::make_unique<GDIResourceManager>();
+    
+    // Create and cache brushes and pens for dark/futuristic theme
+    hDarkBrush_ = gdiManager_->CreateSolidBrush(theme_.colorBackground);
+    hInputBrush_ = gdiManager_->CreateSolidBrush(theme_.colorInputInner);
+    hInputPen_ = gdiManager_->CreatePen(PS_SOLID, 1, theme_.colorInputStroke);
     
     hwnd_ = CreateWindowExW(
         0, // Remove WS_EX_LAYERED for now
         CLASS_NAME,
-        L"SenAI",
+        UiStrings::Get(IDS_APP_TITLE).c_str(),
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, windowWidth_, windowHeight_,
         NULL, NULL, hInstance, this
@@ -129,10 +132,20 @@ LRESULT CALLBACK MainWindow::EditProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
             SendMessageW(hwnd, EM_SETSEL, 0, -1);
             return 0;
         }
-        // Handle Enter to send message
+        // Handle Ctrl+Enter to send message (if enabled)
+        if (wParam == VK_RETURN && pThis && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            if (pThis->enableCtrlEnterToSend_) {
+                pThis->SendChatMessage();
+                return 0;
+            }
+        }
+        // Handle Enter to send message (only if Ctrl+Enter is disabled)
         if (wParam == VK_RETURN && pThis) {
-            pThis->SendChatMessage();
-            return 0;
+            if (!pThis->enableCtrlEnterToSend_) {
+                pThis->SendChatMessage();
+                return 0;
+            }
+            // If Ctrl+Enter is enabled, Enter should insert newline (default behavior)
         }
     }
     
@@ -163,13 +176,13 @@ LRESULT CALLBACK MainWindow::EditProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
                 HDC hdc = GetDC(hwnd);
                 SetBkMode(hdc, TRANSPARENT);
                 SetTextColor(hdc, pThis->theme_.colorPlaceholder);
-                SelectObject(hdc, pThis->hInputFont_);
+                SelectObject(hdc, pThis->hInputFont_->Get());
                 
                 RECT clientRect;
                 GetClientRect(hwnd, &clientRect);
                 clientRect.left += 2; // Padding
                 
-                DrawTextW(hdc, pThis->uiStrings_.placeholder.c_str(), -1, &clientRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                DrawTextW(hdc, UiStrings::Get(IDS_INPUT_PLACEHOLDER).c_str(), -1, &clientRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
                 ReleaseDC(hwnd, hdc);
             }
         }
@@ -203,21 +216,26 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
         case WM_KEYDOWN:
             // Global shortcuts
             if (wParam == VK_ESCAPE) {
-                // Clear current input
-                ClearEdit(hChatInput_);
-                chatViewState_.showPlaceholder = true;
-                InvalidateRect(hwnd_, &inputRect_, FALSE);
-                return 0;
+                // If input has focus, clear it
+                if (GetFocus() == hChatInput_) {
+                    ClearEdit(hChatInput_);
+                    chatViewState_.showPlaceholder = true;
+                    InvalidateRect(hwnd_, &inputRect_, FALSE);
+                    return 0;
+                } else {
+                    // Esc outside input -> confirm exit with custom dark theme dialog
+                    if (ShowExitConfirmationDialog()) {
+                        PostMessage(hwnd_, WM_CLOSE, 0, 0);
+                    }
+                    return 0;
+                }
             }
             if (wParam == 'L' && (GetKeyState(VK_CONTROL) & 0x8000)) {
                 // Ctrl+L -> focus input
                 SetFocus(hChatInput_);
                 return 0;
             }
-            if (wParam == VK_RETURN && GetFocus() == hChatInput_) {
-                SendChatMessage();
-                return 0;
-            }
+            // Ctrl+Enter handling is done in EditProc
             break;
             
         case WM_SIZE:
@@ -300,6 +318,20 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
         }
 
         case WM_TIMER:
+            if (wParam == 3) {
+                // Copy feedback timer - reset checkmark back to copy icon
+                if (copiedMessageIndex_ >= 0) {
+                    RECT iconRect = GetCopyIconRect(copiedMessageIndex_);
+                    InflateRect(&iconRect, 4, 4);
+                    InvalidateRect(hwnd_, &iconRect, FALSE);
+                    copiedMessageIndex_ = -1;
+                }
+                if (copyFeedbackTimerId_ != 0) {
+                    KillTimer(hwnd_, copyFeedbackTimerId_);
+                    copyFeedbackTimerId_ = 0;
+                }
+                return 0;
+            }
             if (wParam == 1 && chatViewState_.isAnimating) {
                 // Animate input Y toward target with smooth easing interpolation
                 int remaining = chatViewState_.animTargetY - chatViewState_.animCurrentY;
@@ -372,6 +404,32 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
                 PtInRect(&sendButtonRect_, pt)) {
                 SendChatMessage();
                 return 0;
+            }
+            
+            // Check click on copy icon
+            if (hoveredCopyIconIndex_ >= 0 && 
+                static_cast<size_t>(hoveredCopyIconIndex_) < chatViewState_.messages.size()) {
+                RECT copyIconRect = GetCopyIconRect(hoveredCopyIconIndex_);
+                if (PtInRect(&copyIconRect, pt)) {
+                    CopyMessageToClipboard(hoveredCopyIconIndex_);
+                    return 0;
+                }
+            }
+            
+            // Check double-click on message bubble to copy
+            DWORD currentTime = GetTickCount();
+            if (hoveredMessageIndex_ >= 0 && 
+                static_cast<size_t>(hoveredMessageIndex_) < chatViewState_.messages.size()) {
+                if (lastClickIndex_ == hoveredMessageIndex_ && 
+                    (currentTime - lastClickTime_) < 500) { // 500ms double-click window
+                    CopyMessageToClipboard(hoveredMessageIndex_);
+                    lastClickTime_ = 0;
+                    lastClickIndex_ = -1;
+                    return 0;
+                } else {
+                    lastClickTime_ = currentTime;
+                    lastClickIndex_ = hoveredMessageIndex_;
+                }
             }
             
             // Check if click is in sidebar
@@ -471,9 +529,22 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
                 }
             }
             
-            // Update message hover
+            // Update message hover (this also handles tooltip)
             UpdateMessageHover(pt.x, pt.y);
             
+            break;
+        }
+        
+        case WM_MOUSELEAVE: {
+            // Hide tooltip when mouse leaves window
+            HideMessageTooltip();
+            int oldHovered = hoveredMessageIndex_;
+            int oldCopyHovered = hoveredCopyIconIndex_;
+            hoveredMessageIndex_ = -1;
+            hoveredCopyIconIndex_ = -1;
+            if (oldHovered != -1 || oldCopyHovered != -1) {
+                InvalidateRect(hwnd_, NULL, FALSE);
+            }
             break;
         }
             
@@ -483,7 +554,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
             SetBkColor(hdc, theme_.colorInputInner);
             SetTextColor(hdc, RGB(255, 255, 255));
             // Return input brush để edit control có cùng màu với input field
-            return (LRESULT)hInputBrush_;
+            return (LRESULT)hInputBrush_->Get();
         }
         case WM_CTLCOLORBTN: {
             HDC hdc = (HDC)wParam;
@@ -499,7 +570,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
             HDC hdc = (HDC)wParam;
             SetBkColor(hdc, RGB(30, 30, 30));
             SetTextColor(hdc, RGB(255, 255, 255));
-            return (LRESULT)hInputBrush_;
+            return (LRESULT)hInputBrush_->Get();
         }
             
         case WM_CLOSE:
@@ -507,6 +578,11 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
             return 0;
             
         case WM_DESTROY:
+            HideMessageTooltip();
+            if (copyFeedbackTimerId_ != 0) {
+                KillTimer(hwnd_, copyFeedbackTimerId_);
+                copyFeedbackTimerId_ = 0;
+            }
             PostQuitMessage(0);
             return 0;
     }

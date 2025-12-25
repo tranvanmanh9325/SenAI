@@ -18,8 +18,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!mainWindow.Create(hInstance)) {
         DWORD error = GetLastError();
         wchar_t errorMsg[256];
-        swprintf_s(errorMsg, L"Failed to create window!\nError code: %lu", error);
-        MessageBoxW(nullptr, errorMsg, L"Error", MB_OK | MB_ICONERROR);
+        swprintf_s(errorMsg, UiStrings::Get(IDS_ERROR_WINDOW_CREATE_FAILED).c_str(), error);
+        MessageBoxW(nullptr, errorMsg, UiStrings::Get(IDS_ERROR_DIALOG_TITLE).c_str(), MB_OK | MB_ICONERROR);
         CoUninitialize();
         return 1;
     }

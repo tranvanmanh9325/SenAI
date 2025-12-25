@@ -7,8 +7,10 @@
 #include <string>
 #include <cstdint>
 #include <vector>
+#include <memory>
 #include "HttpClient.h"
 #include "UiStrings.h"
+#include "GDIResourceManager.h"
 
 enum class MessageType {
     User,
@@ -162,12 +164,24 @@ private:
     HWND hSendButton_;
     HWND hNewSessionButton_;
     
-    // Colors and brushes
-    HBRUSH hDarkBrush_;
-    HBRUSH hInputBrush_;
-    HPEN hInputPen_;
-    HFONT hTitleFont_;
-    HFONT hInputFont_;
+    // GDI Resource Manager
+    std::unique_ptr<GDIResourceManager> gdiManager_;
+    
+    // Cached GDI objects (managed by smart pointers)
+    GDIFontPtr hTitleFont_;
+    GDIFontPtr hInputFont_;
+    GDIBrushPtr hDarkBrush_;
+    GDIBrushPtr hInputBrush_;
+    GDIPenPtr hInputPen_;
+    
+    // Additional cached fonts for rendering
+    GDIFontPtr hMessageFont_;
+    GDIFontPtr hAIMessageFont_;
+    GDIFontPtr hCodeFont_;
+    GDIFontPtr hMetaFont_;
+    GDIFontPtr hSidebarTitleFont_;
+    GDIFontPtr hSidebarItemFont_;
+    GDIFontPtr hSidebarMetaFont_;
     
     // Window dimensions
     int windowWidth_;
@@ -175,7 +189,6 @@ private:
 
     // Theme config
     UiTheme theme_;
-    UiStrings uiStrings_;
     
     HttpClient httpClient_;
     std::string sessionId_;
@@ -222,14 +235,39 @@ private:
     void ShowSettingsDialog();
     static LRESULT CALLBACK SettingsDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     
+    // Exit confirmation dialog
+    bool ShowExitConfirmationDialog();
+    static LRESULT CALLBACK ExitConfirmDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+    
     // Config load/save
     void LoadSettingsFromFile();
-    void SaveSettingsToFile(const std::string& baseUrl, const std::string& apiKey);
+    void SaveSettingsToFile(const std::string& baseUrl, const std::string& apiKey, bool ctrlEnterEnabled = true);
     void UpdateModelNameFromHealth(const std::string& healthJson);
     
     // Hover tracking for messages
     int hoveredMessageIndex_ = -1; // Index of hovered message bubble
     void UpdateMessageHover(int x, int y);
+    
+    // Copy icon tracking
+    int hoveredCopyIconIndex_ = -1; // Index of message with hovered copy icon
+    int copiedMessageIndex_ = -1; // Index of message that was just copied (shows checkmark)
+    UINT_PTR copyFeedbackTimerId_ = 0; // Timer to reset checkmark back to copy icon
+    RECT GetMessageBubbleRect(int messageIndex); // Get bubble rect for a message
+    RECT GetCopyIconRect(int messageIndex); // Get copy icon rect for a message
+    void CopyMessageToClipboard(int messageIndex); // Copy message text to clipboard
+    
+    // Tooltip support
+    void ShowMessageTooltip(int messageIndex, int x, int y); // Show tooltip with metadata
+    void HideMessageTooltip(); // Hide tooltip
+    HWND hTooltipWindow_ = NULL; // Tooltip window handle
+    int tooltipMessageIndex_ = -1; // Currently shown tooltip message index
+    
+    // Settings: Ctrl+Enter to send
+    bool enableCtrlEnterToSend_ = true; // Default enabled
+    
+    // Double-click tracking
+    DWORD lastClickTime_ = 0;
+    int lastClickIndex_ = -1;
 
     // Hover tracking for sidebar items
     int hoveredConversationIndex_ = -1;

@@ -100,13 +100,42 @@ void MainWindow::OnCreate() {
     // Get module handle if hInstance_ is not set
     HINSTANCE hInst = hInstance_ ? hInstance_ : GetModuleHandle(NULL);
     
-    // Create fonts
-    hTitleFont_ = CreateFontW(-44, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+    // Create and cache fonts using resource manager
+    hTitleFont_ = gdiManager_->CreateFont(-44, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
     
     // Larger font for input text
-    hInputFont_ = CreateFontW(-22, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    hInputFont_ = gdiManager_->CreateFont(-22, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    
+    // Cache commonly used fonts for rendering
+    hMessageFont_ = gdiManager_->CreateFont(-20, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    
+    hAIMessageFont_ = gdiManager_->CreateFont(-22, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    
+    hCodeFont_ = gdiManager_->CreateFont(-18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Consolas");
+    
+    hMetaFont_ = gdiManager_->CreateFont(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    
+    hSidebarTitleFont_ = gdiManager_->CreateFont(-18, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    
+    hSidebarItemFont_ = gdiManager_->CreateFont(-16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    
+    hSidebarMetaFont_ = gdiManager_->CreateFont(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
     
@@ -181,12 +210,12 @@ void MainWindow::OnCreate() {
     if (!hChatInput_) {
         DWORD error = GetLastError();
         wchar_t errorMsg[256];
-        swprintf_s(errorMsg, L"Failed to create input control\nError: %lu", error);
-        MessageBoxW(hwnd_, errorMsg, L"Error", MB_OK | MB_ICONERROR);
+        swprintf_s(errorMsg, UiStrings::Get(IDS_ERROR_INPUT_CREATE_FAILED).c_str(), error);
+        MessageBoxW(hwnd_, errorMsg, UiStrings::Get(IDS_ERROR_DIALOG_TITLE).c_str(), MB_OK | MB_ICONERROR);
     }
     
     // Set font and colors
-    SendMessage(hChatInput_, WM_SETFONT, (WPARAM)hInputFont_, TRUE);
+    SendMessage(hChatInput_, WM_SETFONT, (WPARAM)hInputFont_->Get(), TRUE);
     
     // Subclass edit control to handle Ctrl+A
     if (hChatInput_) {

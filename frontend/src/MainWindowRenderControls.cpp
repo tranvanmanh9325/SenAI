@@ -59,7 +59,7 @@ void MainWindow::DrawInputField(HDC hdc) {
             if (buffer[0] == L'\0') {
                 SetBkMode(hdc, TRANSPARENT);
                 SetTextColor(hdc, theme_.colorPlaceholder);
-                SelectObject(hdc, hInputFont_);
+                SelectObject(hdc, hInputFont_->Get());
 
                 // Use edit control rect if available, otherwise use inner rect
                 RECT textRect;
@@ -79,7 +79,7 @@ void MainWindow::DrawInputField(HDC hdc) {
                 textRect.left = inner.left + inputPaddingX + 2;
                 textRect.right = buttonX - gapTextToButton;
 
-                const wchar_t* placeholder = uiStrings_.placeholder.c_str();
+                const wchar_t* placeholder = UiStrings::Get(IDS_INPUT_PLACEHOLDER).c_str();
                 DrawTextW(hdc, placeholder, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
             }
         }
@@ -95,13 +95,13 @@ void MainWindow::DrawInputField(HDC hdc) {
     {
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, RGB(140, 150, 180));
-        SelectObject(hdc, hInputFont_);
+        SelectObject(hdc, hInputFont_->Get());
 
         RECT hintRect = outer;
         hintRect.top = outer.bottom + 4;
         hintRect.bottom = hintRect.top + 24;
 
-        const wchar_t* hintText = L"Enter để gửi, Ctrl+L để focus ô nhập";
+        const wchar_t* hintText = UiStrings::Get(IDS_INPUT_HINT).c_str();
         DrawTextW(hdc, hintText, -1, &hintRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
 }

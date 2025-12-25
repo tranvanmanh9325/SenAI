@@ -39,20 +39,8 @@ void MainWindow::DrawChatMessages(HDC hdc) {
     int availableWidth = messageAreaRight - messageAreaLeft - aiMessageMarginLeft - userMessageMarginRight;
     int maxBubbleWidth = (int)(availableWidth * 0.75); // Max 75% of available width
     
-    // Font for messages (giảm kích thước một chút)
-    HFONT hMessageFont = CreateFontW(-20, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HFONT hAIMessageFont = CreateFontW(-22, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HFONT hCodeFont = CreateFontW(-18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Consolas");
-    HFONT hMetaFont = CreateFontW(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HGDIOBJ oldFont = SelectObject(hdc, hMessageFont);
+    // Use cached fonts instead of creating new ones each render
+    HGDIOBJ oldFont = SelectObject(hdc, hMessageFont_->Get());
     
     SetBkMode(hdc, TRANSPARENT);
     
@@ -60,13 +48,13 @@ void MainWindow::DrawChatMessages(HDC hdc) {
     int totalHeight = 0;
     for (const auto& msg : chatViewState_.messages) {
         // Ensure we measure text with the correct font for each message type
-        HFONT hCurrentFont = hMessageFont;
+        HFONT hCurrentFont = hMessageFont_->Get();
         if (msg.type == MessageType::Code) {
-            hCurrentFont = hCodeFont;
+            hCurrentFont = hCodeFont_->Get();
         } else if (msg.type == MessageType::User) {
-            hCurrentFont = hMessageFont;
+            hCurrentFont = hMessageFont_->Get();
         } else {
-            hCurrentFont = hAIMessageFont;
+            hCurrentFont = hAIMessageFont_->Get();
         }
         SelectObject(hdc, hCurrentFont);
 
@@ -99,17 +87,18 @@ void MainWindow::DrawChatMessages(HDC hdc) {
     int currentY = messageAreaTop - chatViewState_.scrollOffset;
     
     // Draw messages from oldest to newest
-    for (const auto& msg : chatViewState_.messages) {
+    for (size_t msgIdx = 0; msgIdx < chatViewState_.messages.size(); msgIdx++) {
+        const auto& msg = chatViewState_.messages[msgIdx];
         if (currentY > messageAreaBottom) break; // Skip messages below visible area
         if (currentY + 50 < messageAreaTop) { // Skip messages above visible area
             // Estimate height and continue
-            HFONT hCurrentFont = hMessageFont;
+            HFONT hCurrentFont = hMessageFont_->Get();
             if (msg.type == MessageType::Code) {
-                hCurrentFont = hCodeFont;
+                hCurrentFont = hCodeFont_->Get();
             } else if (msg.type == MessageType::User) {
-                hCurrentFont = hMessageFont;
+                hCurrentFont = hMessageFont_->Get();
             } else {
-                hCurrentFont = hAIMessageFont;
+                hCurrentFont = hAIMessageFont_->Get();
             }
             SelectObject(hdc, hCurrentFont);
 
@@ -120,13 +109,13 @@ void MainWindow::DrawChatMessages(HDC hdc) {
         }
         
         // Select correct font for this message and calculate text size
-        HFONT hCurrentFont = hMessageFont;
+        HFONT hCurrentFont = hMessageFont_->Get();
         if (msg.type == MessageType::Code) {
-            hCurrentFont = hCodeFont;
+            hCurrentFont = hCodeFont_->Get();
         } else if (msg.type == MessageType::User) {
-            hCurrentFont = hMessageFont;
+            hCurrentFont = hMessageFont_->Get();
         } else {
-            hCurrentFont = hAIMessageFont;
+            hCurrentFont = hAIMessageFont_->Get();
         }
         SelectObject(hdc, hCurrentFont);
 
@@ -152,17 +141,17 @@ void MainWindow::DrawChatMessages(HDC hdc) {
             msgType = MessageType::User; // Backward compatibility
         }
         
+        // Calculate hover state once for this message
+        bool isHovered = (hoveredMessageIndex_ >= 0 && 
+                         static_cast<size_t>(hoveredMessageIndex_) < chatViewState_.messages.size() &&
+                         static_cast<int>(msgIdx) == hoveredMessageIndex_);
+        
         if (msgType == MessageType::User) {
             // User messages sát bên phải
             bubbleRect.left = messageAreaRight - userMessageMarginRight - bubbleWidth;
             bubbleRect.right = messageAreaRight - userMessageMarginRight;
             bubbleRect.top = currentY;
             bubbleRect.bottom = currentY + bubbleHeight;
-
-            // Bubble colors with hover effect and glow
-            bool isHovered = (hoveredMessageIndex_ >= 0 && 
-                             static_cast<size_t>(hoveredMessageIndex_) < chatViewState_.messages.size() &&
-                             &msg == &chatViewState_.messages[hoveredMessageIndex_]);
             COLORREF bubbleFill = RGB(30, 37, 61);
             COLORREF bubbleBorder = RGB(65, 78, 110);
             if (isHovered) {
@@ -179,26 +168,25 @@ void MainWindow::DrawChatMessages(HDC hdc) {
                     GetGValue(bubbleBorder) / 3,
                     GetBValue(bubbleBorder) / 3
                 );
-                HPEN glowPen = CreatePen(PS_SOLID, 1, glowColor);
-                HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen);
+                auto glowPen = gdiManager_->CreatePen(PS_SOLID, 1, glowColor);
+                HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen->Get());
                 HBRUSH oldGlowBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-                RoundRect(hdc, glowRect.left, glowRect.top, glowRect.right, glowRect.bottom,
+                RoundRect(hdc, glowRect.left, glowRect.top, glowRect.right, glowRect.bottom, 
                          bubbleRadius + 2, bubbleRadius + 2);
                 SelectObject(hdc, oldGlowPen);
                 SelectObject(hdc, oldGlowBrush);
-                DeleteObject(glowPen);
+                // Smart pointer automatically cleans up
             }
             
-            HBRUSH bubbleBrush = CreateSolidBrush(bubbleFill);
-            HPEN bubblePen = CreatePen(PS_SOLID, isHovered ? 2 : 1, bubbleBorder);
-            HGDIOBJ oldBrush = SelectObject(hdc, bubbleBrush);
-            HGDIOBJ oldPen = SelectObject(hdc, bubblePen);
+            auto bubbleBrush = gdiManager_->CreateSolidBrush(bubbleFill);
+            auto bubblePen = gdiManager_->CreatePen(PS_SOLID, isHovered ? 2 : 1, bubbleBorder);
+            HGDIOBJ oldBrush = SelectObject(hdc, bubbleBrush->Get());
+            HGDIOBJ oldPen = SelectObject(hdc, bubblePen->Get());
             RoundRect(hdc, bubbleRect.left, bubbleRect.top, bubbleRect.right, bubbleRect.bottom, 
                      bubbleRadius, bubbleRadius);
             SelectObject(hdc, oldBrush);
             SelectObject(hdc, oldPen);
-            DeleteObject(bubbleBrush);
-            DeleteObject(bubblePen);
+            // Smart pointers automatically clean up
             
             // Avatar with hover glow effect
             COLORREF avatarColor = isHovered ? RGB(120, 250, 255) : RGB(74, 215, 255);
@@ -213,7 +201,7 @@ void MainWindow::DrawChatMessages(HDC hdc) {
             DrawTextW(hdc, msg.text.c_str(), -1, &textDrawRect, DT_LEFT | DT_WORDBREAK);
 
             // Timestamp
-            SelectObject(hdc, hMetaFont);
+            SelectObject(hdc, hMetaFont_->Get());
             SetTextColor(hdc, RGB(154, 163, 195));
             RECT metaRect = textDrawRect;
             metaRect.top = textDrawRect.bottom + 4;
@@ -257,7 +245,7 @@ void MainWindow::DrawChatMessages(HDC hdc) {
             DeleteObject(avatarPen);
         } else {
             // AI / system message: left-aligned bubble
-            SelectObject(hdc, hAIMessageFont);
+            SelectObject(hdc, hAIMessageFont_->Get());
             RECT aiTextRect = {0, 0, maxBubbleWidth - 2 * bubblePaddingX, 0};
             DrawTextW(hdc, msg.text.c_str(), -1, &aiTextRect, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
             textWidth = aiTextRect.right;
@@ -315,10 +303,7 @@ void MainWindow::DrawChatMessages(HDC hdc) {
             else if (isSystemBubble) avatarColor = RGB(100, 180, 255);
             else if (isCodeBubble) avatarColor = RGB(120, 150, 200);
 
-            // Hover effect for AI/System/Error/Code bubbles with glow
-            bool isHovered = (hoveredMessageIndex_ >= 0 && 
-                             static_cast<size_t>(hoveredMessageIndex_) < chatViewState_.messages.size() &&
-                             &msg == &chatViewState_.messages[hoveredMessageIndex_]);
+            // Hover effect for AI/System/Error/Code bubbles with glow (isHovered already calculated above)
             if (isHovered) {
                 // Brighten colors on hover with glow effect
                 bubbleFill = RGB(
@@ -347,26 +332,25 @@ void MainWindow::DrawChatMessages(HDC hdc) {
                     GetGValue(bubbleBorder) / 3,
                     GetBValue(bubbleBorder) / 3
                 );
-                HPEN glowPen = CreatePen(PS_SOLID, 1, glowColor);
-                HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen);
+                auto glowPen = gdiManager_->CreatePen(PS_SOLID, 1, glowColor);
+                HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen->Get());
                 HBRUSH oldGlowBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-                RoundRect(hdc, glowRect.left, glowRect.top, glowRect.right, glowRect.bottom,
+                RoundRect(hdc, glowRect.left, glowRect.top, glowRect.right, glowRect.bottom, 
                          bubbleRadius + 2, bubbleRadius + 2);
                 SelectObject(hdc, oldGlowPen);
                 SelectObject(hdc, oldGlowBrush);
-                DeleteObject(glowPen);
+                // Smart pointer automatically cleans up
             }
             
-            HBRUSH bubbleBrush = CreateSolidBrush(bubbleFill);
-            HPEN bubblePen = CreatePen(PS_SOLID, isHovered ? 2 : 1, bubbleBorder);
-            HGDIOBJ oldBrush = SelectObject(hdc, bubbleBrush);
-            HGDIOBJ oldPen = SelectObject(hdc, bubblePen);
+            auto bubbleBrush = gdiManager_->CreateSolidBrush(bubbleFill);
+            auto bubblePen = gdiManager_->CreatePen(PS_SOLID, isHovered ? 2 : 1, bubbleBorder);
+            HGDIOBJ oldBrush = SelectObject(hdc, bubbleBrush->Get());
+            HGDIOBJ oldPen = SelectObject(hdc, bubblePen->Get());
             RoundRect(hdc, bubbleRect.left, bubbleRect.top, bubbleRect.right, bubbleRect.bottom,
-                      bubbleRadius, bubbleRadius);
+                     bubbleRadius, bubbleRadius);
             SelectObject(hdc, oldBrush);
             SelectObject(hdc, oldPen);
-            DeleteObject(bubbleBrush);
-            DeleteObject(bubblePen);
+            // Smart pointers automatically clean up
             
             // Apply hover effect to avatar (isHovered already declared above)
             if (isHovered) {
@@ -429,12 +413,12 @@ void MainWindow::DrawChatMessages(HDC hdc) {
             textDrawRect.bottom = textDrawRect.top + textHeight;
             // Use monospace font for code bubbles
             if (isCodeBubble) {
-                SelectObject(hdc, hCodeFont);
+                SelectObject(hdc, hCodeFont_->Get());
             }
             DrawTextW(hdc, msg.text.c_str(), -1, &textDrawRect, DT_LEFT | DT_WORDBREAK);
 
             // Timestamp
-            SelectObject(hdc, hMetaFont);
+            SelectObject(hdc, hMetaFont_->Get());
             SetTextColor(hdc, RGB(154, 163, 195));
             RECT metaRect = textDrawRect;
             metaRect.top = textDrawRect.bottom + 4;
@@ -442,12 +426,67 @@ void MainWindow::DrawChatMessages(HDC hdc) {
             DrawTextW(hdc, msg.timestamp.c_str(), -1, &metaRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
         
+        // Draw copy icon or checkmark when hovering over message or after copying
+        int msgIndex = static_cast<int>(msgIdx);
+        bool shouldShowIcon = (isHovered && msgIndex >= 0) || (copiedMessageIndex_ == msgIndex);
+        if (shouldShowIcon && msgIndex >= 0) {
+            RECT copyIconRect = GetCopyIconRect(msgIndex);
+            if (copyIconRect.right > copyIconRect.left && copyIconRect.bottom > copyIconRect.top) {
+                int iconSize = 16;
+                bool isCopied = (copiedMessageIndex_ == msgIndex);
+                
+                if (isCopied) {
+                    // Draw checkmark (smooth transition from copy icon)
+                    COLORREF checkmarkColor = RGB(74, 215, 255); // Cyan color for checkmark
+                    auto checkmarkPen = gdiManager_->CreatePen(PS_SOLID, 2, checkmarkColor);
+                    HGDIOBJ oldCheckmarkPen = SelectObject(hdc, checkmarkPen->Get());
+                    
+                    // Draw checkmark (V shape) - centered in icon area
+                    int iconX = copyIconRect.left;
+                    int iconY = copyIconRect.top;
+                    int checkX = iconX + 3;
+                    int checkY = iconY + iconSize / 2;
+                    int checkSize = 10;
+                    
+                    // Left part of checkmark
+                    MoveToEx(hdc, checkX, checkY, NULL);
+                    LineTo(hdc, checkX + 3, checkY + 3);
+                    
+                    // Right part of checkmark
+                    MoveToEx(hdc, checkX + 3, checkY + 3, NULL);
+                    LineTo(hdc, checkX + checkSize, checkY - 3);
+                    
+                    SelectObject(hdc, oldCheckmarkPen);
+                    // Smart pointer automatically cleans up
+                } else {
+                    // Draw copy icon (simple rectangle with lines representing copy symbol)
+                    COLORREF iconColor = RGB(154, 163, 195);
+                    if (hoveredCopyIconIndex_ == msgIndex) {
+                        iconColor = RGB(74, 215, 255); // Brighter when hovering icon
+                    }
+                    
+                    auto iconPen = gdiManager_->CreatePen(PS_SOLID, 1, iconColor);
+                    HGDIOBJ oldIconPen = SelectObject(hdc, iconPen->Get());
+                    HBRUSH oldIconBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+                    
+                    // Draw copy icon: two overlapping rectangles
+                    int iconX = copyIconRect.left;
+                    int iconY = copyIconRect.top;
+                    // Main rectangle
+                    Rectangle(hdc, iconX, iconY, iconX + iconSize, iconY + iconSize);
+                    // Overlapping rectangle (offset)
+                    Rectangle(hdc, iconX + 3, iconY + 3, iconX + iconSize + 3, iconY + iconSize + 3);
+                    
+                    SelectObject(hdc, oldIconPen);
+                    SelectObject(hdc, oldIconBrush);
+                    // Smart pointer automatically cleans up
+                }
+            }
+        }
+        
         currentY += bubbleHeight + messageMarginY;
     }
     
     SelectObject(hdc, oldFont);
-    DeleteObject(hMessageFont);
-    DeleteObject(hAIMessageFont);
-    DeleteObject(hCodeFont);
-    DeleteObject(hMetaFont);
+    // Fonts are managed by smart pointers, no manual cleanup needed
 }
