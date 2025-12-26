@@ -8,36 +8,7 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 
 ## 1. CẢI THIỆN CHẤT LƯỢNG CODE
 
-### 1.1. Memory Management
-**Vấn đề hiện tại:**
-- Sử dụng raw pointers và manual resource management
-- Có thể có memory leaks nếu exception xảy ra
-- Fonts và brushes được tạo nhiều lần trong rendering
-
-**Giải pháp:**
-- Sử dụng RAII patterns với smart pointers
-- Tạo resource manager class cho fonts, brushes, pens
-- Cache các GDI objects thay vì tạo mới mỗi lần render
-
-**Ưu tiên:** Trung bình
-**Độ khó:** Trung bình
-
-### 1.2. Error Handling
-**Vấn đề hiện tại:**
-- Error handling không nhất quán
-- Một số lỗi chỉ được log ra file, không thông báo cho user
-- Không có error recovery mechanism
-
-**Giải pháp:**
-- Tạo centralized error handling system
-- Hiển thị user-friendly error messages
-- Implement retry logic cho network errors
-- Log errors với stack traces (nếu có thể)
-
-**Ưu tiên:** Trung bình
-**Độ khó:** Trung bình
-
-### 1.3. Code Organization
+### 1.1. Code Organization
 **Vấn đề hiện tại:**
 - Một số file quá dài (MainWindow.cpp ~590 lines)
 - Logic business và UI rendering trộn lẫn
@@ -758,20 +729,18 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 5. Markdown Rendering
 
 ### Medium Priority (Làm khi có thời gian)
-1. Memory Management Improvements
-2. Error Handling System
-3. Theme System
-4. Font Size Adjustment
-5. Window State Persistence
-6. Export Conversation
-7. Conversation Search/Filter
-8. Auto-save Drafts
-9. Virtual Scrolling (nếu cần)
-10. Font Caching
-11. Screen Reader Support
-12. Keyboard Navigation
-13. Unit Tests
-14. CMake Improvements
+1. Theme System
+3. Font Size Adjustment
+4. Window State Persistence
+5. Export Conversation
+6. Conversation Search/Filter
+7. Auto-save Drafts
+8. Virtual Scrolling (nếu cần)
+9. Font Caching
+10. Screen Reader Support
+11. Keyboard Navigation
+12. Unit Tests
+13. CMake Improvements
 
 ### Low Priority (Nice to have)
 1. Code Organization Refactoring
@@ -809,9 +778,7 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 ## 13. RECOMMENDED IMPLEMENTATION ORDER
 
 ### Phase 1: Foundation (1-2 weeks)
-1. Error Handling System
-2. Memory Management Improvements (basic)
-3. Font Caching
+1. Font Caching
 
 ### Phase 2: Security & Performance (1-2 weeks)
 1. API Key Encryption
@@ -843,16 +810,14 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 ### Known Issues
 1. Blocking HTTP calls có thể freeze UI
 2. API key không được bảo vệ
-3. No error recovery mechanism
-4. Hard-coded strings khó maintain
-5. No automated testing
+3. Hard-coded strings khó maintain
+4. No automated testing
 
 ### Refactoring Opportunities
 1. Tách business logic khỏi UI code
 2. Centralize configuration management
 3. Create reusable UI components
-4. Standardize error handling
-5. Improve code documentation
+4. Improve code documentation
 
 ---
 

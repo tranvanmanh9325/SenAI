@@ -229,13 +229,15 @@ public:
     void RemovePen(const std::string& key);
     
 private:
+    // Cache structures kept for future use if needed
+    // Currently not used as GDI objects cannot be shared between DCs
     std::unordered_map<std::string, GDIFontPtr> fontCache_;
     std::unordered_map<std::string, GDIBrushPtr> brushCache_;
     std::unordered_map<std::string, GDIPenPtr> penCache_;
     
+    // Helper functions for generating cache keys (kept for future use)
     std::string MakeFontKey(int height, int width, int weight, 
                            BOOL italic, const wchar_t* faceName);
     std::string MakeBrushKey(COLORREF color);
     std::string MakePenKey(int style, int width, COLORREF color);
 };
-

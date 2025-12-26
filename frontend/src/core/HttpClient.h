@@ -34,7 +34,10 @@ private:
     std::string baseUrl_;
     std::string apiKey_;
     std::string httpGet(const std::string& endpoint);
+    std::string httpGetInternal(const std::string& url);
     std::string httpPost(const std::string& endpoint, const std::string& jsonData);
+    std::string httpPostInternal(const std::string& url, const std::string& jsonData);
     std::string httpPut(const std::string& endpoint, const std::string& jsonData);
+    std::string httpPutInternal(const std::string& url, const std::string& jsonData);
     std::string buildHeaders();
 };

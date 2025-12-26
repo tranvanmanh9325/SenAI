@@ -106,4 +106,3 @@ public:
      */
     static void LogError(const std::string& errorMessage);
 };
-

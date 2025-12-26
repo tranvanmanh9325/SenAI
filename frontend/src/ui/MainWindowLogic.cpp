@@ -1,6 +1,7 @@
 #include <windows.h>
 #include "MainWindow.h"
 #include "JsonParser.h"
+#include "ErrorHandler.h"
 #include <sstream>
 #include <string>
 #include <fstream>
@@ -161,16 +162,14 @@ void MainWindow::SendChatMessage() {
     if (!response.empty() && response.rfind("Error:", 0) == 0) {
         isError = true;
         metadata.rawJson = response;
-        std::string lower = response;
-        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c){ return (char)std::tolower(c); });
-
-        if (lower.find("timeout") != std::string::npos || lower.find("timed out") != std::string::npos) {
-            aiText = UiStrings::Get(IDS_ERROR_TIMEOUT) + L"\r\n"
-                     + UiStrings::Get(IDS_ERROR_TECHNICAL_DETAILS) + Utf8ToWide(response);
-        } else {
-            aiText = UiStrings::Get(IDS_ERROR_BACKEND) + L"\r\n"
-                     + UiStrings::Get(IDS_ERROR_TECHNICAL_DETAILS) + Utf8ToWide(response);
-        }
+        
+        // Use ErrorHandler to get user-friendly message
+        ErrorInfo error(ErrorCategory::Network, ErrorSeverity::Error, response);
+        error.context = "MainWindow::SendChatMessage";
+        error.technicalDetails = response;
+        ErrorHandler::GetInstance().LogError(error);
+        
+        aiText = ErrorHandler::GetInstance().GetUserFriendlyMessage(error);
     } else {
         aiText = Utf8ToWide(response);
         if (aiText.empty()) {
@@ -244,8 +243,18 @@ void MainWindow::SaveSettingsToFile(const std::string& baseUrl, const std::strin
 }
 
 void MainWindow::UpdateModelNameFromHealth(const std::string& healthJson) {
-    std::string model = JsonParser::GetString(healthJson, "model");
+    // Model name is nested in "llm.model" according to backend health endpoint
+    std::string model = JsonParser::GetNestedString(healthJson, "llm.model");
     if (!model.empty()) {
         modelName_ = Utf8ToWide(model);
+    } else {
+        // Fallback: try top-level "model" field (for backward compatibility)
+        model = JsonParser::GetString(healthJson, "model");
+        if (!model.empty()) {
+            modelName_ = Utf8ToWide(model);
+        } else {
+            // Clear model name if not found
+            modelName_ = L"";
+        }
     }
 }

@@ -1,5 +1,6 @@
 #include "HttpClient.h"
 #include "JsonParser.h"
+#include "ErrorHandler.h"
 #include <windows.h>
 #include <wininet.h>
 #include <sstream>
@@ -10,28 +11,6 @@
 #include <nlohmann/json.hpp>
 
 #pragma comment(lib, "wininet.lib")
-
-namespace {
-    // Ghi log lỗi HTTP đơn giản ra file SenAI_frontend.log (cùng thư mục exe)
-    void LogHttpError(const std::string& message) {
-        char path[MAX_PATH] = {0};
-        if (GetModuleFileNameA(NULL, path, MAX_PATH) == 0) {
-            return;
-        }
-        std::string exePath(path);
-        size_t pos = exePath.find_last_of("\\/");
-        std::string dir = (pos == std::string::npos) ? "" : exePath.substr(0, pos + 1);
-        std::string logPath = dir + "SenAI_frontend.log";
-
-        std::ofstream out(logPath, std::ios::app);
-        if (!out.is_open()) return;
-
-        auto now = std::chrono::system_clock::now();
-        std::time_t t = std::chrono::system_clock::to_time_t(now);
-        out << "[HTTP] " << std::put_time(std::localtime(&t), "%Y-%m-%d %H:%M:%S")
-            << " - " << message << "\n";
-    }
-}
 
 HttpClient::HttpClient(const std::string& baseUrl, const std::string& apiKey) 
     : baseUrl_(baseUrl), apiKey_(apiKey) {}
@@ -48,11 +27,25 @@ std::string HttpClient::buildHeaders() {
 
 std::string HttpClient::httpGet(const std::string& endpoint) {
     std::string url = baseUrl_ + endpoint;
+    
+    // Use retry logic for GET requests
+    return ErrorHandler::GetInstance().RetryOperationWithResult(
+        [this, &url]() -> std::string {
+            return httpGetInternal(url);
+        },
+        3,  // max retries
+        1000,  // 1 second delay
+        "GET request failed for " + url
+    );
+}
+
+std::string HttpClient::httpGetInternal(const std::string& url) {
     std::string result;
     
     HINTERNET hInternet = InternetOpenA("SenAI Client", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     if (!hInternet) {
-        LogHttpError("Failed to initialize WinInet for GET " + url);
+        ErrorHandler::GetInstance().LogSystemError(
+            "Failed to initialize WinInet for GET " + url, "HttpClient::httpGetInternal");
         return "Error: Failed to initialize WinInet";
     }
     
@@ -69,14 +62,18 @@ std::string HttpClient::httpGet(const std::string& endpoint) {
     
     if (!InternetCrackUrlA(url.c_str(), url.length(), 0, &urlComp)) {
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to parse URL for GET: " + url);
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            "Failed to parse URL for GET: " + url, "HttpClient::httpGetInternal");
         return "Error: Failed to parse URL";
     }
     
     HINTERNET hConnect = InternetConnectA(hInternet, hostName, urlComp.nPort, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (!hConnect) {
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to connect for GET " + url);
+        DWORD error = GetLastError();
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            "Failed to connect for GET " + url + " (Error: " + std::to_string(error) + ")", 
+            "HttpClient::httpGetInternal");
         return "Error: Failed to connect";
     }
     
@@ -84,7 +81,8 @@ std::string HttpClient::httpGet(const std::string& endpoint) {
     if (!hRequest) {
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to open GET request for " + url);
+        ErrorHandler::GetInstance().LogSystemError(
+            "Failed to open GET request for " + url, "HttpClient::httpGetInternal");
         return "Error: Failed to open request";
     }
     
@@ -94,12 +92,40 @@ std::string HttpClient::httpGet(const std::string& endpoint) {
         HttpAddRequestHeadersA(hRequest, headers.c_str(), headers.length(), HTTP_ADDREQ_FLAG_ADD);
     }
     
+    // Set timeout (30 seconds)
+    DWORD timeout = 30000;
+    InternetSetOptionA(hRequest, INTERNET_OPTION_SEND_TIMEOUT, &timeout, sizeof(timeout));
+    InternetSetOptionA(hRequest, INTERNET_OPTION_RECEIVE_TIMEOUT, &timeout, sizeof(timeout));
+    
     if (!HttpSendRequestA(hRequest, NULL, 0, NULL, 0)) {
+        DWORD error = GetLastError();
         InternetCloseHandle(hRequest);
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to send GET request for " + url);
+        
+        std::string errorMsg = "Failed to send GET request for " + url;
+        if (error == ERROR_INTERNET_TIMEOUT) {
+            errorMsg += " (Timeout)";
+        }
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            errorMsg + " (Error: " + std::to_string(error) + ")", "HttpClient::httpGetInternal");
         return "Error: Failed to send request";
+    }
+    
+    // Check HTTP status code
+    DWORD statusCode = 0;
+    DWORD statusCodeSize = sizeof(statusCode);
+    if (HttpQueryInfoA(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, 
+                      &statusCode, &statusCodeSize, NULL)) {
+        if (statusCode >= 400) {
+            InternetCloseHandle(hRequest);
+            InternetCloseHandle(hConnect);
+            InternetCloseHandle(hInternet);
+            ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+                "HTTP error " + std::to_string(statusCode) + " for GET " + url, 
+                "HttpClient::httpGetInternal");
+            return "Error: HTTP " + std::to_string(statusCode);
+        }
     }
     
     char buffer[4096];
@@ -118,11 +144,25 @@ std::string HttpClient::httpGet(const std::string& endpoint) {
 
 std::string HttpClient::httpPost(const std::string& endpoint, const std::string& jsonData) {
     std::string url = baseUrl_ + endpoint;
+    
+    // Use retry logic for POST requests
+    return ErrorHandler::GetInstance().RetryOperationWithResult(
+        [this, &url, &jsonData]() -> std::string {
+            return httpPostInternal(url, jsonData);
+        },
+        3,  // max retries
+        1000,  // 1 second delay
+        "POST request failed for " + url
+    );
+}
+
+std::string HttpClient::httpPostInternal(const std::string& url, const std::string& jsonData) {
     std::string result;
     
     HINTERNET hInternet = InternetOpenA("SenAI Client", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     if (!hInternet) {
-        LogHttpError("Failed to initialize WinInet for POST " + url);
+        ErrorHandler::GetInstance().LogSystemError(
+            "Failed to initialize WinInet for POST " + url, "HttpClient::httpPostInternal");
         return "Error: Failed to initialize WinInet";
     }
     
@@ -139,14 +179,18 @@ std::string HttpClient::httpPost(const std::string& endpoint, const std::string&
     
     if (!InternetCrackUrlA(url.c_str(), url.length(), 0, &urlComp)) {
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to parse URL for POST: " + url);
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            "Failed to parse URL for POST: " + url, "HttpClient::httpPostInternal");
         return "Error: Failed to parse URL";
     }
     
     HINTERNET hConnect = InternetConnectA(hInternet, hostName, urlComp.nPort, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (!hConnect) {
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to connect for POST " + url);
+        DWORD error = GetLastError();
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            "Failed to connect for POST " + url + " (Error: " + std::to_string(error) + ")", 
+            "HttpClient::httpPostInternal");
         return "Error: Failed to connect";
     }
     
@@ -154,19 +198,48 @@ std::string HttpClient::httpPost(const std::string& endpoint, const std::string&
     if (!hRequest) {
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to open POST request for " + url);
+        ErrorHandler::GetInstance().LogSystemError(
+            "Failed to open POST request for " + url, "HttpClient::httpPostInternal");
         return "Error: Failed to open request";
     }
     
     std::string headers = buildHeaders();
     HttpAddRequestHeadersA(hRequest, headers.c_str(), headers.length(), HTTP_ADDREQ_FLAG_ADD);
     
+    // Set timeout (60 seconds for POST as it may take longer)
+    DWORD timeout = 60000;
+    InternetSetOptionA(hRequest, INTERNET_OPTION_SEND_TIMEOUT, &timeout, sizeof(timeout));
+    InternetSetOptionA(hRequest, INTERNET_OPTION_RECEIVE_TIMEOUT, &timeout, sizeof(timeout));
+    
     if (!HttpSendRequestA(hRequest, NULL, 0, (LPVOID)jsonData.c_str(), jsonData.length())) {
+        DWORD error = GetLastError();
         InternetCloseHandle(hRequest);
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to send POST request for " + url);
+        
+        std::string errorMsg = "Failed to send POST request for " + url;
+        if (error == ERROR_INTERNET_TIMEOUT) {
+            errorMsg += " (Timeout)";
+        }
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            errorMsg + " (Error: " + std::to_string(error) + ")", "HttpClient::httpPostInternal");
         return "Error: Failed to send request";
+    }
+    
+    // Check HTTP status code
+    DWORD statusCode = 0;
+    DWORD statusCodeSize = sizeof(statusCode);
+    if (HttpQueryInfoA(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, 
+                      &statusCode, &statusCodeSize, NULL)) {
+        if (statusCode >= 400) {
+            InternetCloseHandle(hRequest);
+            InternetCloseHandle(hConnect);
+            InternetCloseHandle(hInternet);
+            ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+                "HTTP error " + std::to_string(statusCode) + " for POST " + url, 
+                "HttpClient::httpPostInternal");
+            return "Error: HTTP " + std::to_string(statusCode);
+        }
     }
     
     char buffer[4096];
@@ -185,11 +258,25 @@ std::string HttpClient::httpPost(const std::string& endpoint, const std::string&
 
 std::string HttpClient::httpPut(const std::string& endpoint, const std::string& jsonData) {
     std::string url = baseUrl_ + endpoint;
+    
+    // Use retry logic for PUT requests
+    return ErrorHandler::GetInstance().RetryOperationWithResult(
+        [this, &url, &jsonData]() -> std::string {
+            return httpPutInternal(url, jsonData);
+        },
+        3,  // max retries
+        1000,  // 1 second delay
+        "PUT request failed for " + url
+    );
+}
+
+std::string HttpClient::httpPutInternal(const std::string& url, const std::string& jsonData) {
     std::string result;
     
     HINTERNET hInternet = InternetOpenA("SenAI Client", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     if (!hInternet) {
-        LogHttpError("Failed to initialize WinInet for PUT " + url);
+        ErrorHandler::GetInstance().LogSystemError(
+            "Failed to initialize WinInet for PUT " + url, "HttpClient::httpPutInternal");
         return "Error: Failed to initialize WinInet";
     }
     
@@ -206,14 +293,18 @@ std::string HttpClient::httpPut(const std::string& endpoint, const std::string& 
     
     if (!InternetCrackUrlA(url.c_str(), url.length(), 0, &urlComp)) {
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to parse URL for PUT: " + url);
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            "Failed to parse URL for PUT: " + url, "HttpClient::httpPutInternal");
         return "Error: Failed to parse URL";
     }
     
     HINTERNET hConnect = InternetConnectA(hInternet, hostName, urlComp.nPort, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (!hConnect) {
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to connect for PUT " + url);
+        DWORD error = GetLastError();
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            "Failed to connect for PUT " + url + " (Error: " + std::to_string(error) + ")", 
+            "HttpClient::httpPutInternal");
         return "Error: Failed to connect";
     }
     
@@ -221,19 +312,48 @@ std::string HttpClient::httpPut(const std::string& endpoint, const std::string& 
     if (!hRequest) {
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to open PUT request for " + url);
+        ErrorHandler::GetInstance().LogSystemError(
+            "Failed to open PUT request for " + url, "HttpClient::httpPutInternal");
         return "Error: Failed to open request";
     }
     
     std::string headers = buildHeaders();
     HttpAddRequestHeadersA(hRequest, headers.c_str(), headers.length(), HTTP_ADDREQ_FLAG_ADD);
     
+    // Set timeout (30 seconds)
+    DWORD timeout = 30000;
+    InternetSetOptionA(hRequest, INTERNET_OPTION_SEND_TIMEOUT, &timeout, sizeof(timeout));
+    InternetSetOptionA(hRequest, INTERNET_OPTION_RECEIVE_TIMEOUT, &timeout, sizeof(timeout));
+    
     if (!HttpSendRequestA(hRequest, NULL, 0, (LPVOID)jsonData.c_str(), jsonData.length())) {
+        DWORD error = GetLastError();
         InternetCloseHandle(hRequest);
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hInternet);
-        LogHttpError("Failed to send PUT request for " + url);
+        
+        std::string errorMsg = "Failed to send PUT request for " + url;
+        if (error == ERROR_INTERNET_TIMEOUT) {
+            errorMsg += " (Timeout)";
+        }
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            errorMsg + " (Error: " + std::to_string(error) + ")", "HttpClient::httpPutInternal");
         return "Error: Failed to send request";
+    }
+    
+    // Check HTTP status code
+    DWORD statusCode = 0;
+    DWORD statusCodeSize = sizeof(statusCode);
+    if (HttpQueryInfoA(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, 
+                      &statusCode, &statusCodeSize, NULL)) {
+        if (statusCode >= 400) {
+            InternetCloseHandle(hRequest);
+            InternetCloseHandle(hConnect);
+            InternetCloseHandle(hInternet);
+            ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+                "HTTP error " + std::to_string(statusCode) + " for PUT " + url, 
+                "HttpClient::httpPutInternal");
+            return "Error: HTTP " + std::to_string(statusCode);
+        }
     }
     
     char buffer[4096];
@@ -269,6 +389,8 @@ std::string HttpClient::sendMessage(const std::string& message, const std::strin
         
         // Check if response is an error
         if (response.find("Error:") == 0) {
+            ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+                "Failed to send message: " + response, "HttpClient::sendMessage");
             return response; // Return error message as-is
         }
         
@@ -281,6 +403,8 @@ std::string HttpClient::sendMessage(const std::string& message, const std::strin
         // Nếu không tìm thấy ai_response, kiểm tra xem có phải là error response không
         std::string errorDetail = JsonParser::GetString(response, "detail");
         if (!errorDetail.empty()) {
+            ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+                "Backend returned error detail: " + errorDetail, "HttpClient::sendMessage");
             return "Error: " + errorDetail;
         }
         
@@ -288,6 +412,8 @@ std::string HttpClient::sendMessage(const std::string& message, const std::strin
         // Trong production, có thể muốn return empty string hoặc error message
         return response;
     } catch (const std::exception& e) {
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            "Exception in sendMessage: " + std::string(e.what()), "HttpClient::sendMessage");
         return "Error: Failed to send message - " + std::string(e.what());
     }
 }
@@ -307,8 +433,17 @@ std::string HttpClient::createTask(const std::string& taskName, const std::strin
         if (!description.empty()) {
             json["description"] = description;
         }
-        return httpPost("/tasks", json.dump());
+        std::string result = httpPost("/tasks", json.dump());
+        
+        if (result.find("Error:") == 0) {
+            ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+                "Failed to create task: " + result, "HttpClient::createTask");
+        }
+        
+        return result;
     } catch (const std::exception& e) {
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Network, ErrorSeverity::Error,
+            "Exception in createTask: " + std::string(e.what()), "HttpClient::createTask");
         return "Error: Failed to create task - " + std::string(e.what());
     }
 }

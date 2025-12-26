@@ -36,29 +36,35 @@ endif()
 # Source files
 set(SOURCES
     src/main.cpp
-    src/MainWindow.cpp
-    src/MainWindowLogic.cpp
-    src/MainWindowConversations.cpp
-    src/MainWindowChatMessages.cpp
-    src/MainWindowUI.cpp
-    src/MainWindowRender.cpp
-    src/MainWindowSettings.cpp
-    src/MainWindowExitConfirm.cpp
-    src/MainWindowRenderControls.cpp
-    src/MainWindowRenderSidebar.cpp
-    src/MainWindowHelpers.cpp
-    src/MainWindowMessageHelpers.cpp
-    src/HttpClient.cpp
-    src/JsonParser.cpp
-    src/GDIResourceManager.cpp
+    # UI files
+    src/ui/MainWindow.cpp
+    src/ui/MainWindowLogic.cpp
+    src/ui/MainWindowConversations.cpp
+    src/ui/MainWindowChatMessages.cpp
+    src/ui/MainWindowUI.cpp
+    src/ui/MainWindowRender.cpp
+    src/ui/MainWindowSettings.cpp
+    src/ui/MainWindowExitConfirm.cpp
+    src/ui/MainWindowRenderControls.cpp
+    src/ui/MainWindowRenderSidebar.cpp
+    src/ui/MainWindowHelpers.cpp
+    src/ui/MainWindowMessageHelpers.cpp
+    # Core files
+    src/core/HttpClient.cpp
+    src/core/JsonParser.cpp
+    src/core/GDIResourceManager.cpp
+    src/core/ErrorHandler.cpp
 )
 
 set(HEADERS
-    src/MainWindow.h
-    src/MainWindowHelpers.h
-    src/HttpClient.h
-    src/JsonParser.h
-    src/GDIResourceManager.h
+    # UI headers
+    src/ui/MainWindow.h
+    src/ui/MainWindowHelpers.h
+    # Core headers
+    src/core/HttpClient.h
+    src/core/JsonParser.h
+    src/core/GDIResourceManager.h
+    src/core/ErrorHandler.h
 )
 
 # Create executable
@@ -79,7 +85,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json)
 
 # Include directories
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
+)
 
 # Set output directory
 set_target_properties(${PROJECT_NAME} PROPERTIES

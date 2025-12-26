@@ -1,4 +1,5 @@
 #include "JsonParser.h"
+#include "ErrorHandler.h"
 #include <windows.h>
 #include <fstream>
 #include <sstream>
@@ -6,31 +7,10 @@
 #include <chrono>
 #include <ctime>
 
-namespace {
-    // Log JSON parsing errors to file
-    void LogJsonError(const std::string& message) {
-        char path[MAX_PATH] = {0};
-        if (GetModuleFileNameA(NULL, path, MAX_PATH) == 0) {
-            return;
-        }
-        std::string exePath(path);
-        size_t pos = exePath.find_last_of("\\/");
-        std::string dir = (pos == std::string::npos) ? "" : exePath.substr(0, pos + 1);
-        std::string logPath = dir + "SenAI_frontend.log";
-
-        std::ofstream out(logPath, std::ios::app);
-        if (!out.is_open()) return;
-
-        auto now = std::chrono::system_clock::now();
-        std::time_t t = std::chrono::system_clock::to_time_t(now);
-        out << "[JSON] " << std::put_time(std::localtime(&t), "%Y-%m-%d %H:%M:%S")
-            << " - " << message << "\n";
-    }
-}
-
 std::unique_ptr<nlohmann::json> JsonParser::Parse(const std::string& jsonString) {
     if (jsonString.empty()) {
-        LogJsonError("Empty JSON string provided");
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "Empty JSON string provided", "JsonParser::Parse");
         return nullptr;
     }
 
@@ -38,13 +18,21 @@ std::unique_ptr<nlohmann::json> JsonParser::Parse(const std::string& jsonString)
         auto json = std::make_unique<nlohmann::json>(nlohmann::json::parse(jsonString));
         return json;
     } catch (const nlohmann::json::parse_error& e) {
-        LogJsonError("JSON parse error: " + std::string(e.what()) + " - Input: " + jsonString.substr(0, 200));
+        std::string inputPreview = jsonString.length() > 200 ? jsonString.substr(0, 200) + "..." : jsonString;
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "JSON parse error: " + std::string(e.what()), "JsonParser::Parse");
+        ErrorInfo error(ErrorCategory::Json, ErrorSeverity::Warning, "JSON parse error");
+        error.context = "JsonParser::Parse";
+        error.technicalDetails = std::string(e.what()) + " - Input preview: " + inputPreview;
+        ErrorHandler::GetInstance().LogError(error);
         return nullptr;
     } catch (const std::exception& e) {
-        LogJsonError("JSON error: " + std::string(e.what()));
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "JSON error: " + std::string(e.what()), "JsonParser::Parse");
         return nullptr;
     } catch (...) {
-        LogJsonError("Unknown error parsing JSON");
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "Unknown error parsing JSON", "JsonParser::Parse");
         return nullptr;
     }
 }
@@ -70,7 +58,8 @@ std::string JsonParser::GetString(const std::string& jsonString,
             }
         }
     } catch (const std::exception& e) {
-        LogJsonError("Error extracting field '" + fieldName + "': " + e.what());
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "Error extracting field '" + fieldName + "': " + e.what(), "JsonParser::GetString");
     }
 
     return defaultValue;
@@ -101,7 +90,8 @@ int JsonParser::GetInt(const std::string& jsonString,
             }
         }
     } catch (const std::exception& e) {
-        LogJsonError("Error extracting int field '" + fieldName + "': " + e.what());
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "Error extracting int field '" + fieldName + "': " + e.what(), "JsonParser::GetInt");
     }
 
     return defaultValue;
@@ -128,7 +118,8 @@ bool JsonParser::GetBool(const std::string& jsonString,
             }
         }
     } catch (const std::exception& e) {
-        LogJsonError("Error extracting bool field '" + fieldName + "': " + e.what());
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "Error extracting bool field '" + fieldName + "': " + e.what(), "JsonParser::GetBool");
     }
 
     return defaultValue;
@@ -168,7 +159,8 @@ std::string JsonParser::GetNestedString(const std::string& jsonString,
             return current->dump();
         }
     } catch (const std::exception& e) {
-        LogJsonError("Error extracting nested field '" + fieldPath + "': " + e.what());
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "Error extracting nested field '" + fieldPath + "': " + e.what(), "JsonParser::GetNestedString");
     }
 
     return defaultValue;
@@ -188,10 +180,12 @@ std::vector<nlohmann::json> JsonParser::ParseArray(const std::string& jsonString
                 result.push_back(item);
             }
         } else {
-            LogJsonError("JSON is not an array");
+            ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+                "JSON is not an array", "JsonParser::ParseArray");
         }
     } catch (const std::exception& e) {
-        LogJsonError("Error parsing array: " + std::string(e.what()));
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "Error parsing array: " + std::string(e.what()), "JsonParser::ParseArray");
     }
 
     return result;
@@ -205,7 +199,8 @@ std::string JsonParser::BuildJson(const std::vector<std::pair<std::string, std::
         }
         return json.dump();
     } catch (const std::exception& e) {
-        LogJsonError("Error building JSON: " + std::string(e.what()));
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "Error building JSON: " + std::string(e.what()), "JsonParser::BuildJson");
         return "{}";
     }
 }
@@ -216,7 +211,8 @@ std::string JsonParser::BuildJson(const std::string& key, const std::string& val
         json[key] = value;
         return json.dump();
     } catch (const std::exception& e) {
-        LogJsonError("Error building JSON: " + std::string(e.what()));
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "Error building JSON: " + std::string(e.what()), "JsonParser::BuildJson");
         return "{}";
     }
 }
@@ -231,7 +227,8 @@ std::string JsonParser::EscapeJson(const std::string& str) {
         }
         return escaped;
     } catch (const std::exception& e) {
-        LogJsonError("Error escaping JSON string: " + std::string(e.what()));
+        ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+            "Error escaping JSON string: " + std::string(e.what()), "JsonParser::EscapeJson");
         // Fallback to manual escaping
         std::ostringstream o;
         for (size_t i = 0; i < str.length(); ++i) {
@@ -256,6 +253,6 @@ std::string JsonParser::EscapeJson(const std::string& str) {
 }
 
 void JsonParser::LogError(const std::string& errorMessage) {
-    LogJsonError(errorMessage);
+    ErrorHandler::GetInstance().LogError(ErrorCategory::Json, ErrorSeverity::Warning,
+        errorMessage, "JsonParser");
 }
-

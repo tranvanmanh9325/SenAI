@@ -9,6 +9,12 @@ from services.fine_tuning_service import FineTuningService
 from services.pattern_analysis_service import PatternAnalysisService
 from services.semantic_search_service import SemanticSearchService
 
+# Import centralized error handler
+from services.error_handler import (
+    handle_error, handle_database_error, handle_llm_error,
+    handle_validation_error, ErrorCategory, ErrorSeverity
+)
+
 # Import authentication
 from middleware.auth import verify_api_key
 
@@ -40,15 +46,19 @@ async def create_task(
     db: Session = Depends(get_db),
     api_key: str = Depends(verify_api_key)
 ):
-    db_task = AgentTask(
-        task_name=task.task_name,
-        description=task.description,
-        status="pending"
-    )
-    db.add(db_task)
-    db.commit()
-    db.refresh(db_task)
-    return db_task
+    try:
+        db_task = AgentTask(
+            task_name=task.task_name,
+            description=task.description,
+            status="pending"
+        )
+        db.add(db_task)
+        db.commit()
+        db.refresh(db_task)
+        return db_task
+    except Exception as e:
+        db.rollback()
+        raise handle_database_error(e, context="create_task")
 
 @router.get("/tasks", response_model=List[TaskResponse])
 async def get_tasks(
@@ -254,10 +264,17 @@ async def create_conversation(
         # Re-raise HTTPException as-is
         raise
     except Exception as e:
-        logging.error(f"Error creating conversation: {e}", exc_info=True)
         # Rollback transaction nếu có lỗi
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
+        # Use centralized error handler
+        raise handle_error(
+            e,
+            category=ErrorCategory.LLM,
+            severity=ErrorSeverity.ERROR,
+            context="create_conversation",
+            user_message="Không thể tạo conversation. Vui lòng thử lại sau.",
+            status_code=500
+        )
 
 @router.get("/conversations", response_model=List[ConversationResponse])
 async def get_conversations(

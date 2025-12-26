@@ -2,7 +2,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <objbase.h>
-#include "MainWindow.h"
+#include "ui/MainWindow.h"
 
 #pragma comment(lib, "ole32.lib")
 
