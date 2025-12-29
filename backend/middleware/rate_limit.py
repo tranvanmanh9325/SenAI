@@ -33,10 +33,27 @@ def get_rate_limit_key(request: Request) -> str:
     # Thử lấy API key từ header
     api_key = request.headers.get("X-API-Key")
     if api_key:
-        return f"api_key:{api_key}"
+        # Hash API key để làm key (không expose plain text trong Redis key)
+        import hashlib
+        api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]  # Short hash
+        return f"api_key:{api_key_hash}"
     
     # Fallback to IP address
     return get_remote_address(request)
+
+
+def get_rate_limit_for_api_key(request: Request) -> str:
+    """
+    Lấy rate limit string cho API key từ request state
+    Nếu API key có rate_limit riêng, dùng nó; nếu không, dùng default
+    """
+    # Kiểm tra xem có API key object trong request state không
+    api_key_obj = getattr(request.state, "api_key", None)
+    if api_key_obj and hasattr(api_key_obj, "rate_limit") and api_key_obj.rate_limit:
+        return api_key_obj.rate_limit
+    
+    # Fallback to default
+    return DEFAULT_RATE_LIMIT
 
 
 # Custom limiter với key function

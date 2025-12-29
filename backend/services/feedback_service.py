@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, text
 from sqlalchemy import and_
 
+from services.encryption_service import encryption_service
+
 logger = logging.getLogger(__name__)
 
 class FeedbackService:
@@ -66,9 +68,11 @@ class FeedbackService:
                 if feedback_type:
                     existing_feedback.feedback_type = feedback_type
                 if comment is not None:
-                    existing_feedback.comment = comment
+                    # Encrypt sensitive comment field
+                    existing_feedback.comment = encryption_service.encrypt(comment) if comment else None
                 if user_correction is not None:
-                    existing_feedback.user_correction = user_correction
+                    # Encrypt sensitive user_correction field
+                    existing_feedback.user_correction = encryption_service.encrypt(user_correction) if user_correction else None
                 if is_helpful is not None:
                     existing_feedback.is_helpful = is_helpful
                 existing_feedback.updated_at = datetime.utcnow()
@@ -91,12 +95,16 @@ class FeedbackService:
                 elif rating is None:
                     rating = 3  # Default neutral
                 
+                # Encrypt sensitive fields before saving
+                encrypted_comment = encryption_service.encrypt(comment) if comment else None
+                encrypted_user_correction = encryption_service.encrypt(user_correction) if user_correction else None
+                
                 feedback = ConversationFeedback(
                     conversation_id=conversation_id,
                     rating=rating,
                     feedback_type=feedback_type,
-                    comment=comment,
-                    user_correction=user_correction,
+                    comment=encrypted_comment,
+                    user_correction=encrypted_user_correction,
                     is_helpful=is_helpful
                 )
                 
@@ -247,19 +255,34 @@ class FeedbackService:
                 ).first()
                 
                 if conv:
+                    # Decrypt sensitive fields
+                    decrypted_comment = None
+                    decrypted_user_correction = None
+                    
+                    try:
+                        if fb.comment:
+                            decrypted_comment = encryption_service.decrypt(fb.comment)
+                        if fb.user_correction:
+                            decrypted_user_correction = encryption_service.decrypt(fb.user_correction)
+                    except Exception as e:
+                        logger.warning(f"Error decrypting feedback {fb.id} for training: {e}")
+                        # Fallback to original (may be unencrypted old data)
+                        decrypted_comment = fb.comment
+                        decrypted_user_correction = fb.user_correction
+                    
                     item = {
                         "conversation_id": fb.conversation_id,
                         "user_message": conv.user_message,
                         "original_response": conv.ai_response,
                         "rating": fb.rating,
                         "feedback_type": fb.feedback_type,
-                        "comment": fb.comment,
+                        "comment": decrypted_comment,
                         "is_helpful": fb.is_helpful
                     }
                     
                     # Nếu có user correction, dùng nó làm output đúng
-                    if fb.user_correction:
-                        item["corrected_response"] = fb.user_correction
+                    if decrypted_user_correction:
+                        item["corrected_response"] = decrypted_user_correction
                         item["should_use_correction"] = True
                     else:
                         item["should_use_correction"] = False
@@ -306,6 +329,21 @@ class FeedbackService:
             
             conversations = []
             for conv, fb in results:
+                # Decrypt sensitive fields when reading
+                decrypted_comment = None
+                decrypted_user_correction = None
+                
+                try:
+                    if fb.comment:
+                        decrypted_comment = encryption_service.decrypt(fb.comment)
+                    if fb.user_correction:
+                        decrypted_user_correction = encryption_service.decrypt(fb.user_correction)
+                except Exception as e:
+                    logger.warning(f"Error decrypting feedback {fb.id}: {e}")
+                    # Fallback to original (may be unencrypted old data)
+                    decrypted_comment = fb.comment
+                    decrypted_user_correction = fb.user_correction
+                
                 conversations.append({
                     "conversation_id": conv.id,
                     "user_message": conv.user_message,
@@ -316,8 +354,8 @@ class FeedbackService:
                         "id": fb.id,
                         "rating": fb.rating,
                         "feedback_type": fb.feedback_type,
-                        "comment": fb.comment,
-                        "user_correction": fb.user_correction,
+                        "comment": decrypted_comment,
+                        "user_correction": decrypted_user_correction,
                         "is_helpful": fb.is_helpful,
                         "created_at": fb.created_at.isoformat()
                     }

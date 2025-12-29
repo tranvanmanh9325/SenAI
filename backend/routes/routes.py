@@ -44,7 +44,7 @@ async def create_task(
     request: Request,
     task: TaskCreate, 
     db: Session = Depends(get_db),
-    api_key: str = Depends(verify_api_key)
+    api_key = Depends(verify_api_key)
 ):
     try:
         db_task = AgentTask(
@@ -62,19 +62,21 @@ async def create_task(
 
 @router.get("/tasks", response_model=List[TaskResponse])
 async def get_tasks(
+    request: Request,
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(get_db),
-    api_key: str = Depends(verify_api_key)
+    api_key = Depends(verify_api_key)
 ):
     tasks = db.query(AgentTask).offset(skip).limit(limit).all()
     return tasks
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 async def get_task(
+    request: Request,
     task_id: int, 
     db: Session = Depends(get_db),
-    api_key: str = Depends(verify_api_key)
+    api_key = Depends(verify_api_key)
 ):
     task = db.query(AgentTask).filter(AgentTask.id == task_id).first()
     if task is None:
@@ -83,11 +85,12 @@ async def get_task(
 
 @router.put("/tasks/{task_id}", response_model=TaskResponse)
 async def update_task(
+    request: Request,
     task_id: int, 
     status: str, 
     result: Optional[str] = None, 
     db: Session = Depends(get_db),
-    api_key: str = Depends(verify_api_key)
+    api_key = Depends(verify_api_key)
 ):
     from datetime import datetime
     task = db.query(AgentTask).filter(AgentTask.id == task_id).first()
@@ -278,11 +281,12 @@ async def create_conversation(
 
 @router.get("/conversations", response_model=List[ConversationResponse])
 async def get_conversations(
+    request: Request,
     session_id: Optional[str] = None, 
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(get_db),
-    api_key: str = Depends(verify_api_key)
+    api_key = Depends(verify_api_key)
 ):
     query = db.query(AgentConversation)
     if session_id:
@@ -292,7 +296,7 @@ async def get_conversations(
 
 # LLM Management endpoints
 @router.get("/api/llm/status")
-async def get_llm_status(api_key: str = Depends(verify_api_key)):
+async def get_llm_status(request: Request, api_key = Depends(verify_api_key)):
     """Kiểm tra trạng thái LLM connection"""
     ollama_status = await llm_service.check_ollama_connection()
     return {
@@ -305,8 +309,9 @@ async def get_llm_status(api_key: str = Depends(verify_api_key)):
 # Fine-tuning endpoints
 @router.get("/api/finetune/stats")
 async def get_finetune_stats(
+    request: Request,
     db: Session = Depends(get_db),
-    api_key: str = Depends(verify_api_key)
+    api_key = Depends(verify_api_key)
 ):
     """Lấy thống kê về dữ liệu training"""
     ft_service = FineTuningService(db)
@@ -373,8 +378,9 @@ async def export_training_data(
 
 @router.get("/api/finetune/instructions")
 async def get_finetune_instructions(
+    request: Request,
     db: Session = Depends(get_db),
-    api_key: str = Depends(verify_api_key)
+    api_key = Depends(verify_api_key)
 ):
     """Lấy hướng dẫn fine-tuning"""
     ft_service = FineTuningService(db)

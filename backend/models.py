@@ -2,7 +2,7 @@
 Database Models
 Tách riêng models để tránh circular imports
 """
-from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
 import os
@@ -85,3 +85,62 @@ class ConversationEmbedding(Base):
     embedding_dimension: int = Column(Integer, default=384)  # Dimension của embedding
     created_at: datetime = Column(DateTime, default=datetime.utcnow)
     updated_at: datetime = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class APIKey(Base):
+    """
+    Model cho API keys dùng cho authentication & authorization.
+    Chỉ lưu hash của key, không bao giờ lưu plain text key.
+    """
+
+    __tablename__ = "api_keys"
+
+    id: int = Column(Integer, primary_key=True, index=True)
+    # SHA-256 hex hash của API key
+    key_hash: str = Column(String(64), unique=True, nullable=False, index=True)
+
+    # Thông tin mô tả và gán cho user (nếu có)
+    name: str = Column(String(255), nullable=False)
+    user_id: int | None = Column(Integer, nullable=True, index=True)
+
+    # Permissions được lưu dạng JSON string (["read", "write", "admin"])
+    permissions: str | None = Column(Text, nullable=True)
+
+    # Rate limit riêng cho key này (vd: "100/minute")
+    rate_limit: str = Column(String(50), default="100/minute")
+
+    # Quản lý vòng đời key
+    created_at: datetime = Column(DateTime, default=datetime.utcnow)
+    expires_at: datetime | None = Column(DateTime, nullable=True)
+    last_used_at: datetime | None = Column(DateTime, nullable=True)
+
+    # Trạng thái hoạt động
+    is_active: bool = Column(Boolean, default=True, index=True)
+
+
+class APIKeyAuditLog(Base):
+    """
+    Audit log cho việc sử dụng API key.
+    Ghi lại mỗi request: endpoint, method, IP, user-agent, status code, thời gian phản hồi.
+    """
+
+    __tablename__ = "api_key_audit_logs"
+
+    id: int = Column(Integer, primary_key=True, index=True)
+
+    api_key_id: int = Column(
+        Integer,
+        ForeignKey("api_keys.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    endpoint: str = Column(String(512), nullable=False)
+    method: str = Column(String(10), nullable=False)
+    ip_address: str | None = Column(String(64), nullable=True)
+    user_agent: str | None = Column(Text, nullable=True)
+
+    status_code: int = Column(Integer, nullable=False)
+    response_time_ms: int | None = Column(Integer, nullable=True)
+
+    created_at: datetime = Column(DateTime, default=datetime.utcnow, index=True)

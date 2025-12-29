@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from datetime import datetime
 from typing import Optional, List, Dict
 from contextlib import asynccontextmanager
@@ -10,6 +10,17 @@ import os
 import importlib
 import logging
 from dotenv import load_dotenv
+
+# Input validation & security helpers
+from middleware.security import (
+    validate_and_sanitize_text,
+    sanitize_text,
+    MAX_MESSAGE_LENGTH,
+    MAX_TASK_NAME_LENGTH,
+    MAX_COMMENT_LENGTH,
+    MAX_SESSION_ID_LENGTH,
+    InputSizeLimitMiddleware,
+)
 
 # Import rate limiting
 from middleware.rate_limit import limiter, limiter_with_api_key, rate_limit_exceeded_handler
@@ -63,7 +74,28 @@ DB_NAME = os.getenv("DB_NAME", "ai_system")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
+# TLS/SSL configuration for database
+DB_SSL_MODE = os.getenv("DB_SSL_MODE", "prefer")  # disable, allow, prefer, require, verify-ca, verify-full
+DB_SSL_ROOT_CERT = os.getenv("DB_SSL_ROOT_CERT", None)  # Path to CA certificate
+DB_SSL_CERT = os.getenv("DB_SSL_CERT", None)  # Path to client certificate
+DB_SSL_KEY = os.getenv("DB_SSL_KEY", None)  # Path to client key
+
+# Build database URL with SSL parameters
 DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+# SSL connection arguments for SQLAlchemy
+DB_CONNECT_ARGS = {
+    "connect_timeout": 10,
+    "sslmode": DB_SSL_MODE
+}
+
+# Add SSL certificates if provided
+if DB_SSL_ROOT_CERT:
+    DB_CONNECT_ARGS["sslrootcert"] = DB_SSL_ROOT_CERT
+if DB_SSL_CERT:
+    DB_CONNECT_ARGS["sslcert"] = DB_SSL_CERT
+if DB_SSL_KEY:
+    DB_CONNECT_ARGS["sslkey"] = DB_SSL_KEY
 
 
 def sanitize_database_url(url: str) -> str:
@@ -133,7 +165,7 @@ else:
 
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
-# Create database engine với connection pooling configuration
+# Create database engine với connection pooling configuration và SSL
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,  # Kiểm tra connection trước khi sử dụng
@@ -142,15 +174,18 @@ engine = create_engine(
     pool_recycle=3600,  # Recycle connections sau 1 giờ
     pool_timeout=30,  # Timeout khi lấy connection từ pool
     echo=False,  # Không log SQL queries
-    # Ẩn password trong SQLAlchemy logs
-    connect_args={"connect_timeout": 10}
+    # SSL/TLS configuration và connection timeout
+    connect_args=DB_CONNECT_ARGS
 )
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Import models from models.py to avoid circular imports
-from models import Base, AgentTask, AgentConversation, ConversationFeedback, ConversationEmbedding
+from models import (
+    Base, AgentTask, AgentConversation, ConversationFeedback, 
+    ConversationEmbedding, APIKey, APIKeyAuditLog
+)
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -159,6 +194,30 @@ Base.metadata.create_all(bind=engine)
 class TaskCreate(BaseModel):
     task_name: str
     description: Optional[str] = None
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    @field_validator("task_name")
+    @classmethod
+    def validate_task_name(cls, v: str) -> str:
+        return validate_and_sanitize_text(
+            v,
+            max_length=MAX_TASK_NAME_LENGTH,
+            field_name="task_name",
+            allow_empty=False,
+        )
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return validate_and_sanitize_text(
+            v,
+            max_length=MAX_COMMENT_LENGTH,
+            field_name="description",
+            allow_empty=True,
+        )
 
 class TaskResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -174,6 +233,30 @@ class TaskResponse(BaseModel):
 class ConversationCreate(BaseModel):
     user_message: str
     session_id: Optional[str] = None
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    @field_validator("user_message")
+    @classmethod
+    def validate_user_message(cls, v: str) -> str:
+        return validate_and_sanitize_text(
+            v,
+            max_length=MAX_MESSAGE_LENGTH,
+            field_name="user_message",
+            allow_empty=False,
+        )
+
+    @field_validator("session_id")
+    @classmethod
+    def validate_session_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return validate_and_sanitize_text(
+            v,
+            max_length=MAX_SESSION_ID_LENGTH,
+            field_name="session_id",
+            allow_empty=False,
+        )
 
 class ConversationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -191,6 +274,59 @@ class FeedbackCreate(BaseModel):
     comment: Optional[str] = None
     user_correction: Optional[str] = None  # Câu trả lời đúng nếu user muốn sửa
     is_helpful: Optional[str] = None  # yes, no, partially
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    @field_validator("rating")
+    @classmethod
+    def validate_rating(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v < 1 or v > 5:
+            raise ValueError("rating must be between 1 and 5")
+        return v
+
+    @field_validator("feedback_type")
+    @classmethod
+    def validate_feedback_type(cls, v: str) -> str:
+        allowed = {"rating", "thumbs_up", "thumbs_down", "detailed"}
+        if v not in allowed:
+            raise ValueError(f"feedback_type must be one of {sorted(allowed)}")
+        return v
+
+    @field_validator("is_helpful")
+    @classmethod
+    def validate_is_helpful(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        allowed = {"yes", "no", "partially"}
+        if v not in allowed:
+            raise ValueError(f"is_helpful must be one of {sorted(allowed)}")
+        return v
+
+    @field_validator("comment")
+    @classmethod
+    def validate_comment(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return validate_and_sanitize_text(
+            v,
+            max_length=MAX_COMMENT_LENGTH,
+            field_name="comment",
+            allow_empty=True,
+        )
+
+    @field_validator("user_correction")
+    @classmethod
+    def validate_user_correction(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return validate_and_sanitize_text(
+            v,
+            max_length=MAX_MESSAGE_LENGTH,
+            field_name="user_correction",
+            allow_empty=False,
+        )
 
 class FeedbackResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -238,6 +374,11 @@ async def lifespan(app: FastAPI):
                     logging.info(f"Gợi ý: Sử dụng model '{suggested_model}' (cập nhật LLM_MODEL_NAME trong .env)")
         else:
             logging.warning(f"Ollama connection failed: {ollama_status.get('error', 'Unknown error')}")
+        
+        # Start background tasks
+        from services.background_tasks import background_tasks_service
+        await background_tasks_service.start()
+        logging.info("Background tasks started")
     except Exception as exc:
         # Không log exception trực tiếp vì có thể chứa password
         # Chỉ log error message an toàn
@@ -251,8 +392,13 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    # Shutdown (nếu cần cleanup)
-    pass
+    # Shutdown
+    try:
+        from services.background_tasks import background_tasks_service
+        await background_tasks_service.stop()
+        logging.info("Background tasks stopped")
+    except Exception as e:
+        logging.error(f"Error stopping background tasks: {e}")
 
 # FastAPI app
 app = FastAPI(
@@ -265,6 +411,21 @@ app = FastAPI(
 # Attach rate limiter to app
 app.state.limiter = limiter_with_api_key
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# Security headers middleware (add first to enforce HTTPS and add headers)
+from middleware.security_headers import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Secure logging middleware (mask sensitive data in logs)
+from middleware.logging_middleware import SecureLoggingMiddleware
+app.add_middleware(SecureLoggingMiddleware)
+
+# Input size limiting middleware (protect against very large request bodies)
+app.add_middleware(InputSizeLimitMiddleware)
+
+# API Key middleware (add early to set up request state)
+from middleware.api_key_middleware import APIKeyMiddleware
+app.add_middleware(APIKeyMiddleware, session_factory=SessionLocal)
 
 # Metrics middleware (add before CORS to track all requests)
 app.add_middleware(MetricsMiddleware)
@@ -342,8 +503,10 @@ def _register_routes():
     """Lazy import routes to avoid circular import"""
     from routes.routes import router
     from routes.routes_analysis import router as analysis_router
+    from routes.api_keys import router as api_keys_router
     app.include_router(router)
     app.include_router(analysis_router)
+    app.include_router(api_keys_router)
 
 _register_routes()
 
