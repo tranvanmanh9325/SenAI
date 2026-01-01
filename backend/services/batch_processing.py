@@ -278,5 +278,3 @@ class BatchProcessor:
 
 # Global instance
 batch_processor = BatchProcessor()
-
-

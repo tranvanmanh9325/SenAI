@@ -87,4 +87,3 @@ async def test_check_ollama_connection():
         status = await service.check_ollama_connection()
         assert isinstance(status, dict)
         assert "connected" in status
-

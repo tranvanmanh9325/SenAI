@@ -309,4 +309,3 @@ async def get_conversations_async(
         return conversations
     except Exception as e:
         raise handle_database_error(e, context="get_conversations_async")
-

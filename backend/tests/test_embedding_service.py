@@ -55,4 +55,3 @@ async def test_generate_embedding_empty_text():
     
     embedding = await service.generate_embedding("   ")
     assert embedding is None
-

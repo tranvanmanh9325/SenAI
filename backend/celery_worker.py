@@ -18,5 +18,3 @@ from services.celery_config import celery_app
 if __name__ == "__main__":
     # Start Celery worker
     celery_app.start()
-
-

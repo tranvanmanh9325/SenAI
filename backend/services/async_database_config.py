@@ -186,5 +186,3 @@ def get_async_database_config() -> AsyncDatabaseConfig:
     if _async_db_config is None:
         _async_db_config = AsyncDatabaseConfig()
     return _async_db_config
-
-

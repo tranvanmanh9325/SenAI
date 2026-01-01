@@ -53,5 +53,3 @@ async def run_sync_in_thread(func: Callable, *args, **kwargs) -> Any:
     """
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, lambda: func(*args, **kwargs))
-
-

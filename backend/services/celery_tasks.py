@@ -230,4 +230,3 @@ def cleanup_expired_cache_task():
             return asyncio.run(_cleanup())
     except RuntimeError:
         return asyncio.run(_cleanup())
-

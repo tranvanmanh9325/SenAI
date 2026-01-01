@@ -161,5 +161,3 @@ def get_async_cache_service(db_session=None) -> AsyncCacheService:
         _async_cache_service.cache_service.l3_enabled = True
     
     return _async_cache_service
-
-

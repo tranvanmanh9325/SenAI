@@ -60,5 +60,3 @@ celery_app.conf.task_routes = {
     'services.celery_tasks.index_conversation': {'queue': 'indexing'},
     'services.celery_tasks.batch_process': {'queue': 'batch'},
 }
-
-

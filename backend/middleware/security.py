@@ -167,5 +167,3 @@ class InputSizeLimitMiddleware(BaseHTTPMiddleware):
                     logging.warning("Invalid Content-Length header: %r", content_length)
 
         return await call_next(request)
-
-

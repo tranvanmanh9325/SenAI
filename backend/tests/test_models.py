@@ -69,4 +69,3 @@ def test_conversation_embedding_model():
     assert embedding.embedding_model == "sentence-transformers"
     assert embedding.embedding_dimension == 384
     assert isinstance(embedding.created_at, datetime) or embedding.created_at is None
-

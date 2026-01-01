@@ -44,4 +44,3 @@ def sample_feedback_data():
         "comment": "Great response!",
         "is_helpful": "yes"
     }
-
