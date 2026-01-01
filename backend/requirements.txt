@@ -1,6 +1,7 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 sqlalchemy>=2.0.36
+asyncpg>=0.29.0
 psycopg2-binary>=2.9.10
 pydantic>=2.10.0
 pydantic-settings>=2.6.0
@@ -12,6 +13,9 @@ slowapi>=0.1.9
 tenacity>=8.2.3
 pgvector>=0.2.4
 redis>=5.0.1
+aioredis>=2.0.1
+celery>=5.3.4
+nest-asyncio>=1.6.0
 prometheus-client>=0.19.0
 pytest>=7.4.0
 pytest-asyncio>=0.21.0

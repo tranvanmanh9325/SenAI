@@ -253,14 +253,24 @@ async def create_conversation(
         db.commit()
         db.refresh(db_conversation)
         
-        # Index conversation trong background (không block response)
-        # Background task sẽ chạy sau khi response đã được trả về cho client
-        background_tasks.add_task(
-            index_conversation_background,
-            conversation_id=db_conversation.id,
-            user_message=conversation.user_message,
-            ai_response=ai_response
-        )
+        # Index conversation trong background qua Celery (không block response)
+        # Celery task sẽ chạy trong worker process riêng
+        try:
+            from services.celery_tasks import index_conversation_task
+            index_conversation_task.delay(
+                conversation_id=db_conversation.id,
+                user_message=conversation.user_message,
+                ai_response=ai_response
+            )
+        except Exception as e:
+            # Fallback to FastAPI BackgroundTasks nếu Celery không available
+            logging.warning(f"Celery not available, using BackgroundTasks: {e}")
+            background_tasks.add_task(
+                index_conversation_background,
+                conversation_id=db_conversation.id,
+                user_message=conversation.user_message,
+                ai_response=ai_response
+            )
         
         return db_conversation
     except HTTPException:

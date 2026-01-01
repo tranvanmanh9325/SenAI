@@ -95,13 +95,38 @@ def _init_prometheus():
         _metrics['cache_hits_total'] = Counter(
             'cache_hits_total',
             'Total cache hits',
-            ['cache_type']
+            ['cache_type', 'level']  # level: l1, l2, l3
         )
         
         _metrics['cache_misses_total'] = Counter(
             'cache_misses_total',
             'Total cache misses',
             ['cache_type']
+        )
+        
+        _metrics['cache_sets_total'] = Counter(
+            'cache_sets_total',
+            'Total cache sets',
+            ['cache_type', 'level']
+        )
+        
+        _metrics['cache_evictions_total'] = Counter(
+            'cache_evictions_total',
+            'Total cache evictions',
+            ['level']
+        )
+        
+        _metrics['cache_size'] = Gauge(
+            'cache_size',
+            'Current cache size',
+            ['level']
+        )
+        
+        _metrics['cache_ttl_seconds'] = Histogram(
+            'cache_ttl_seconds',
+            'Cache TTL in seconds',
+            ['cache_type', 'level'],
+            buckets=[60, 300, 600, 1800, 3600, 7200, 14400, 28800, 86400]
         )
         
         # Error metrics
@@ -245,13 +270,20 @@ class MetricsService:
         except Exception as e:
             logger.warning(f"Failed to record DB metrics: {e}")
     
-    def record_cache_hit(self, cache_type: str):
+    def record_cache_hit(self, cache_type: str, level: str = "unknown"):
         """Record cache hit"""
         if not self.enabled:
             return
         
         try:
-            self.metrics['cache_hits_total'].labels(cache_type=cache_type).inc()
+            # Handle format "level:cache_type" or separate params
+            if ":" in cache_type:
+                level, cache_type = cache_type.split(":", 1)
+            
+            self.metrics['cache_hits_total'].labels(
+                cache_type=cache_type,
+                level=level
+            ).inc()
         except Exception as e:
             logger.warning(f"Failed to record cache hit: {e}")
     
@@ -264,6 +296,52 @@ class MetricsService:
             self.metrics['cache_misses_total'].labels(cache_type=cache_type).inc()
         except Exception as e:
             logger.warning(f"Failed to record cache miss: {e}")
+    
+    def record_cache_set(self, cache_type: str, level: str = "unknown"):
+        """Record cache set"""
+        if not self.enabled:
+            return
+        
+        try:
+            self.metrics['cache_sets_total'].labels(
+                cache_type=cache_type,
+                level=level
+            ).inc()
+        except Exception as e:
+            logger.warning(f"Failed to record cache set: {e}")
+    
+    def record_cache_eviction(self, level: str = "unknown"):
+        """Record cache eviction"""
+        if not self.enabled:
+            return
+        
+        try:
+            self.metrics['cache_evictions_total'].labels(level=level).inc()
+        except Exception as e:
+            logger.warning(f"Failed to record cache eviction: {e}")
+    
+    def update_cache_size(self, level: str, size: int):
+        """Update cache size gauge"""
+        if not self.enabled:
+            return
+        
+        try:
+            self.metrics['cache_size'].labels(level=level).set(size)
+        except Exception as e:
+            logger.warning(f"Failed to update cache size: {e}")
+    
+    def record_cache_ttl(self, cache_type: str, level: str, ttl: float):
+        """Record cache TTL"""
+        if not self.enabled:
+            return
+        
+        try:
+            self.metrics['cache_ttl_seconds'].labels(
+                cache_type=cache_type,
+                level=level
+            ).observe(ttl)
+        except Exception as e:
+            logger.warning(f"Failed to record cache TTL: {e}")
     
     def record_error(self, error_type: str, service: str):
         """Record error"""
@@ -312,4 +390,3 @@ class MetricsService:
 
 # Global metrics service instance
 metrics_service = MetricsService()
-

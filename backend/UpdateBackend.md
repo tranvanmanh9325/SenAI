@@ -13,72 +13,9 @@
 10. [Monitoring & Observability](#10-monitoring--observability)
 11. [DevOps & Deployment](#11-devops--deployment)
 
----
-
-## 1. Bảo Mật (Security)
-
-### 1.3. Authentication & Authorization
-**Vấn đề hiện tại:**
-- Chỉ có API key authentication, không có user authentication
-- Không có role-based access control (RBAC)
-- Không có session management
-
-**Cải thiện:**
-- ✅ Thêm JWT-based authentication cho users
-- ✅ User registration và login endpoints
-- ✅ Role-based access control (admin, user, guest)
-- ✅ Session management với refresh tokens
-- ✅ OAuth2 integration (Google, GitHub, etc.)
-- ✅ Password hashing với bcrypt/argon2
-
----
-
 ## 2. Hiệu Năng (Performance)
 
-### 2.1. Database Optimization
-**Vấn đề hiện tại:**
-- Thiếu database indexes cho các queries thường dùng
-- Không có query optimization
-- Connection pooling có thể cần điều chỉnh
-
-**Cải thiện:**
-- ✅ Thêm indexes cho:
-  - `agent_conversations(session_id, created_at)`
-  - `conversation_feedback(conversation_id, rating)`
-  - `conversation_embeddings(conversation_id)`
-- ✅ Query optimization với EXPLAIN ANALYZE
-- ✅ Database connection pooling tuning
-- ✅ Read replicas cho read-heavy operations
-- ✅ Database query caching
-
-### 2.2. Caching Strategy
-**Vấn đề hiện tại:**
-- Caching chỉ cho embeddings và LLM responses
-- Không có caching cho pattern analysis results
-- Cache TTL cố định, không adaptive
-
-**Cải thiện:**
-- ✅ Multi-level caching:
-  - L1: In-memory cache (fast, small)
-  - L2: Redis cache (medium, larger)
-  - L3: Database (persistent)
-- ✅ Cache warming cho frequently accessed data
-- ✅ Adaptive TTL based on access patterns
-- ✅ Cache invalidation strategies
-- ✅ Cache metrics và monitoring
-
-### 2.3. Async Operations
-**Vấn đề hiện tại:**
-- Một số operations vẫn blocking
-- Background tasks chưa được optimize
-
-**Cải thiện:**
-- ✅ Convert tất cả blocking operations sang async
-- ✅ Background task queue với Celery hoặc RQ
-- ✅ Async database operations với async SQLAlchemy
-- ✅ Batch processing cho bulk operations
-
-### 2.4. LLM Response Optimization
+### 2.1. LLM Response Optimization
 **Vấn đề hiện tại:**
 - Không có streaming responses
 - Không có response compression
@@ -91,7 +28,7 @@
 - ✅ Response caching với smart invalidation
 - ✅ Batch LLM requests khi có thể
 
-### 2.5. Embedding Generation Optimization
+### 2.2. Embedding Generation Optimization
 **Vấn đề hiện tại:**
 - Embedding generation có thể chậm với large texts
 - Không có batch embedding generation
@@ -468,7 +405,7 @@
 
 ### Priority 1 (Critical - Làm ngay)
 1. **Security**: API key management, input validation
-2. **Performance**: Database indexes, caching improvements
+2. **Performance**: Database indexes, LLM response optimization
 3. **Testing**: Unit tests cho critical services
 4. **Error Handling**: Error recovery và monitoring
 
