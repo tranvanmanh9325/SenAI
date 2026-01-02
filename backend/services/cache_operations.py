@@ -268,3 +268,51 @@ class CacheConvenienceMethods:
         """Get cached pattern analysis"""
         key = self.get_pattern_analysis_key(session_id, limit)
         return self.cache_service.get(key, cache_type="pattern_analysis")
+    
+    def invalidate_llm_cache_by_pattern(self, pattern: str) -> int:
+        """
+        Smart invalidation: Invalidate LLM cache entries matching pattern
+        
+        Args:
+            pattern: Pattern to match (e.g., "llm_response:*" or partial key)
+        
+        Returns:
+            Number of entries invalidated
+        """
+        full_pattern = f"llm_response:{pattern}" if not pattern.startswith("llm_response:") else pattern
+        return self.cache_service.invalidate_pattern(full_pattern)
+    
+    def invalidate_llm_cache_for_user_message(self, user_message: str) -> int:
+        """
+        Invalidate all LLM cache entries for a specific user message
+        (ignoring conversation_history and system_prompt variations)
+        
+        Args:
+            user_message: User message to invalidate cache for
+        
+        Returns:
+            Number of entries invalidated
+        """
+        # Use pattern matching to find all cache entries with this user_message
+        # Note: This is approximate since exact key matching requires all parameters
+        pattern = f"llm_response:*{user_message[:50]}*"  # Use first 50 chars as pattern
+        return self.cache_service.invalidate_pattern(pattern)
+    
+    def invalidate_stale_llm_cache(self, max_age_hours: int = 168) -> int:
+        """
+        Invalidate stale LLM cache entries older than specified age
+        
+        Args:
+            max_age_hours: Maximum age in hours (default: 7 days = 168 hours)
+        
+        Returns:
+            Number of entries invalidated
+        """
+        # This would require tracking creation time in cache entries
+        # For now, use TTL-based invalidation through pattern matching
+        # In a more advanced implementation, we could check TTL remaining
+        # and invalidate entries with very little TTL left
+        logger.info(f"Invalidating stale LLM cache entries older than {max_age_hours} hours")
+        # Note: Actual implementation would need to check entry timestamps
+        # This is a placeholder for future enhancement
+        return 0

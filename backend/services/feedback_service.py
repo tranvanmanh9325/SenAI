@@ -5,10 +5,8 @@ Phân tích feedback và cải thiện responses
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from sqlalchemy.orm import Session
-from sqlalchemy import func, text
-from sqlalchemy import and_
 
+from repositories import FeedbackRepository, ConversationRepository
 from services.encryption_service import encryption_service
 
 logger = logging.getLogger(__name__)
@@ -16,8 +14,35 @@ logger = logging.getLogger(__name__)
 class FeedbackService:
     """Service để quản lý và phân tích feedback"""
     
-    def __init__(self, db: Session):
-        self.db = db
+    def __init__(
+        self,
+        feedback_repository: Optional[FeedbackRepository] = None,
+        conversation_repository: Optional[ConversationRepository] = None,
+        db: Optional[Any] = None
+    ):
+        """
+        Initialize FeedbackService with repositories or database session (for backward compatibility)
+        
+        Args:
+            feedback_repository: Repository for feedback operations (preferred)
+            conversation_repository: Repository for conversation operations (preferred)
+            db: Database session (for backward compatibility, will create repos if not provided)
+        """
+        from sqlalchemy.orm import Session
+        
+        if feedback_repository is not None and conversation_repository is not None:
+            # New pattern: use repositories
+            self.feedback_repo = feedback_repository
+            self.conversation_repo = conversation_repository
+            self.db = feedback_repository.session
+        elif db is not None:
+            # Backward compatibility: create repositories from session
+            from repositories import FeedbackRepository, ConversationRepository
+            self.db = db
+            self.feedback_repo = FeedbackRepository(db)
+            self.conversation_repo = ConversationRepository(db)
+        else:
+            raise ValueError("Either provide repositories or a database session")
     
     def submit_feedback(
         self,
@@ -44,10 +69,7 @@ class FeedbackService:
         """
         try:
             # Kiểm tra conversation có tồn tại không
-            from models import AgentConversation
-            conversation = self.db.query(AgentConversation).filter(
-                AgentConversation.id == conversation_id
-            ).first()
+            conversation = self.conversation_repo.get_by_id(conversation_id)
             
             if not conversation:
                 return {
@@ -55,71 +77,27 @@ class FeedbackService:
                     "error": f"Conversation {conversation_id} not found"
                 }
             
-            # Kiểm tra đã có feedback chưa (có thể update)
-            from models import ConversationFeedback
-            existing_feedback = self.db.query(ConversationFeedback).filter(
-                ConversationFeedback.conversation_id == conversation_id
-            ).first()
+            # Encrypt sensitive fields before saving
+            encrypted_comment = encryption_service.encrypt(comment) if comment else None
+            encrypted_user_correction = encryption_service.encrypt(user_correction) if user_correction else None
             
-            if existing_feedback:
-                # Update existing feedback
-                if rating is not None:
-                    existing_feedback.rating = rating
-                if feedback_type:
-                    existing_feedback.feedback_type = feedback_type
-                if comment is not None:
-                    # Encrypt sensitive comment field
-                    existing_feedback.comment = encryption_service.encrypt(comment) if comment else None
-                if user_correction is not None:
-                    # Encrypt sensitive user_correction field
-                    existing_feedback.user_correction = encryption_service.encrypt(user_correction) if user_correction else None
-                if is_helpful is not None:
-                    existing_feedback.is_helpful = is_helpful
-                existing_feedback.updated_at = datetime.utcnow()
-                
-                self.db.commit()
-                self.db.refresh(existing_feedback)
-                
-                return {
-                    "success": True,
-                    "message": "Feedback updated",
-                    "feedback_id": existing_feedback.id
-                }
-            else:
-                # Tạo feedback mới
-                # Xử lý rating từ feedback_type
-                if feedback_type == "thumbs_up":
-                    rating = 1
-                elif feedback_type == "thumbs_down":
-                    rating = -1
-                elif rating is None:
-                    rating = 3  # Default neutral
-                
-                # Encrypt sensitive fields before saving
-                encrypted_comment = encryption_service.encrypt(comment) if comment else None
-                encrypted_user_correction = encryption_service.encrypt(user_correction) if user_correction else None
-                
-                feedback = ConversationFeedback(
-                    conversation_id=conversation_id,
-                    rating=rating,
-                    feedback_type=feedback_type,
-                    comment=encrypted_comment,
-                    user_correction=encrypted_user_correction,
-                    is_helpful=is_helpful
-                )
-                
-                self.db.add(feedback)
-                self.db.commit()
-                self.db.refresh(feedback)
-                
-                return {
-                    "success": True,
-                    "message": "Feedback submitted",
-                    "feedback_id": feedback.id
-                }
+            # Use repository to upsert feedback
+            feedback = self.feedback_repo.upsert_feedback(
+                conversation_id=conversation_id,
+                rating=rating,
+                feedback_type=feedback_type,
+                comment=encrypted_comment,
+                user_correction=encrypted_user_correction,
+                is_helpful=is_helpful
+            )
+            
+            return {
+                "success": True,
+                "message": "Feedback submitted",
+                "feedback_id": feedback.id
+            }
         except Exception as e:
             logger.error(f"Error submitting feedback: {e}")
-            self.db.rollback()
             return {
                 "success": False,
                 "error": str(e)
@@ -136,7 +114,8 @@ class FeedbackService:
             Dict với thống kê
         """
         try:
-            from app import ConversationFeedback
+            from sqlalchemy import func, and_
+            from models import ConversationFeedback
             
             query = self.db.query(ConversationFeedback)
             
@@ -158,42 +137,58 @@ class FeedbackService:
                     "feedback_by_type": {}
                 }
             
-            # Average rating (chỉ tính rating > 0)
-            avg_rating = self.db.query(func.avg(ConversationFeedback.rating)).filter(
-                ConversationFeedback.rating > 0
-            ).scalar()
+            # Use repository method for general stats, then filter if needed
+            stats = self.feedback_repo.get_feedback_stats()
             
-            # Count by sentiment
-            positive = query.filter(
-                ConversationFeedback.rating >= 4
-            ).count()
-            
-            negative = query.filter(
-                ConversationFeedback.rating <= 2
-            ).count()
-            
-            neutral = query.filter(
-                and_(ConversationFeedback.rating > 2, ConversationFeedback.rating < 4)
-            ).count()
-            
-            # Count by helpfulness
-            helpful = query.filter(
-                ConversationFeedback.is_helpful == "yes"
-            ).count()
-            
-            not_helpful = query.filter(
-                ConversationFeedback.is_helpful == "no"
-            ).count()
-            
-            # Count by type
-            feedback_by_type = {}
-            types = self.db.query(
-                ConversationFeedback.feedback_type,
-                func.count(ConversationFeedback.id)
-            ).group_by(ConversationFeedback.feedback_type).all()
-            
-            for fb_type, count in types:
-                feedback_by_type[fb_type] = count
+            # If filtering by conversation_id, we need custom query
+            if conversation_id:
+                filtered_query = self.db.query(ConversationFeedback).filter(
+                    ConversationFeedback.conversation_id == conversation_id
+                )
+                total = filtered_query.count()
+                avg_rating = filtered_query.filter(
+                    ConversationFeedback.rating > 0
+                ).with_entities(func.avg(ConversationFeedback.rating)).scalar()
+                positive = filtered_query.filter(ConversationFeedback.rating >= 4).count()
+                negative = filtered_query.filter(ConversationFeedback.rating <= 2).count()
+                neutral = filtered_query.filter(
+                    and_(ConversationFeedback.rating > 2, ConversationFeedback.rating < 4)
+                ).count()
+                helpful = filtered_query.filter(ConversationFeedback.is_helpful == "yes").count()
+                not_helpful = filtered_query.filter(ConversationFeedback.is_helpful == "no").count()
+                
+                # Count by type
+                feedback_by_type = {}
+                types = filtered_query.with_entities(
+                    ConversationFeedback.feedback_type,
+                    func.count(ConversationFeedback.id)
+                ).group_by(ConversationFeedback.feedback_type).all()
+                
+                for fb_type, count in types:
+                    feedback_by_type[fb_type] = count
+            else:
+                # Use repository stats
+                avg_rating = stats.get("average_rating")
+                total = stats.get("total_count", 0)
+                positive = stats.get("positive_count", 0)
+                negative = stats.get("negative_count", 0)
+                neutral = total - positive - negative
+                helpful = self.db.query(ConversationFeedback).filter(
+                    ConversationFeedback.is_helpful == "yes"
+                ).count()
+                not_helpful = self.db.query(ConversationFeedback).filter(
+                    ConversationFeedback.is_helpful == "no"
+                ).count()
+                
+                # Count by type
+                feedback_by_type = {}
+                types = self.db.query(
+                    ConversationFeedback.feedback_type,
+                    func.count(ConversationFeedback.id)
+                ).group_by(ConversationFeedback.feedback_type).all()
+                
+                for fb_type, count in types:
+                    feedback_by_type[fb_type] = count
             
             return {
                 "total_feedback": total,

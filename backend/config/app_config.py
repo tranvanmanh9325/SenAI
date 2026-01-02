@@ -468,6 +468,16 @@ async def lifespan(app):
         except Exception as e:
             logging.debug(f"Cache service initialization skipped: {e}")
         
+        # Start embedding precompute task nếu được bật
+        try:
+            from services.embedding_service import embedding_service
+            if embedding_service.precompute_enabled:
+                precompute_interval = int(os.getenv("EMBEDDING_PRECOMPUTE_INTERVAL", "3600"))  # Default: 1 hour
+                await embedding_service.start_precompute_task(precompute_interval)
+                logging.info(f"Embedding precompute task started (interval: {precompute_interval}s)")
+        except Exception as e:
+            logging.debug(f"Embedding precompute task initialization skipped: {e}")
+        
         # Start Celery worker nếu ENABLE_CELERY_WORKER=true
         enable_celery_worker = os.getenv("ENABLE_CELERY_WORKER", "false").lower() == "true"
         if enable_celery_worker:
@@ -497,6 +507,14 @@ async def lifespan(app):
         await background_tasks_service.stop()
         logging.info("Background tasks stopped")
     except Exception as e:
+        logging.debug(f"Error stopping background tasks: {e}")
+    
+    try:
+        from services.embedding_service import embedding_service
+        embedding_service.stop_precompute_task()
+        logging.info("Embedding precompute task stopped")
+    except Exception as e:
+        logging.debug(f"Error stopping embedding precompute task: {e}")
         logging.error(f"Error stopping background tasks: {e}")
     
     # Stop Celery worker nếu đang chạy (chạy trong finally để đảm bảo luôn được gọi)

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from typing import AsyncIterator
 import importlib
 import logging
 
@@ -62,6 +63,10 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 from middleware.security_headers import SecurityHeadersMiddleware
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Compression middleware (compress responses to reduce bandwidth)
+from middleware.compression_middleware import CompressionMiddleware
+app.add_middleware(CompressionMiddleware, minimum_size=500, compresslevel=6)
+
 # Secure logging middleware (mask sensitive data in logs)
 from middleware.logging_middleware import SecureLoggingMiddleware
 app.add_middleware(SecureLoggingMiddleware)
@@ -94,7 +99,7 @@ def get_db():
         db.close()
 
 # Dependency to get async database session
-async def get_async_db() -> AsyncSession:
+async def get_async_db() -> AsyncIterator[AsyncSession]:
     async with AsyncSessionLocal() as session:
         try:
             yield session

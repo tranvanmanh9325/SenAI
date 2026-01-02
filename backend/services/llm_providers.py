@@ -186,6 +186,89 @@ class OllamaProvider:
         # Nếu tất cả retries đều fail
         return "Xin lỗi, không thể tạo phản hồi từ AI sau nhiều lần thử. Vui lòng kiểm tra Ollama đã chạy và model đã được tải chưa."
     
+    async def generate_stream(
+        self,
+        user_message: str,
+        conversation_history: Optional[List[Dict[str, str]]],
+        system_prompt: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int]
+    ):
+        """Generate streaming response qua Ollama API"""
+        import json
+        
+        # Build messages
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        if conversation_history:
+            messages.extend(conversation_history)
+        messages.append({"role": "user", "content": user_message})
+        
+        # Build prompt từ messages
+        if len(messages) == 1 and messages[0].get("role") == "user":
+            prompt = messages[0].get("content", user_message)
+        else:
+            prompt_parts = []
+            for msg in messages:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                if role == "system":
+                    prompt_parts.insert(0, content)
+                elif role == "user":
+                    if prompt_parts:
+                        prompt_parts.append(f"\n\nUser: {content}")
+                    else:
+                        prompt_parts.append(content)
+                elif role == "assistant":
+                    prompt_parts.append(f"\n\nAssistant: {content}")
+            prompt = "\n".join(prompt_parts)
+        
+        # Create payload with streaming enabled
+        payload = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "stream": True,
+            "options": {
+                "temperature": temperature,
+            }
+        }
+        if max_tokens:
+            payload["options"]["num_predict"] = max_tokens
+        
+        url = f"{self.base_url}/api/generate"
+        
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with client.stream("POST", url, json=payload) as response:
+                    response.raise_for_status()
+                    full_response = ""
+                    
+                    async for line in response.aiter_lines():
+                        if not line.strip():
+                            continue
+                        
+                        try:
+                            data = json.loads(line)
+                            
+                            # Extract response chunk
+                            if "response" in data:
+                                chunk = data["response"]
+                                if chunk:
+                                    full_response += chunk
+                                    yield chunk
+                            
+                            # Check if done
+                            if data.get("done", False):
+                                break
+                        except json.JSONDecodeError:
+                            logger.warning(f"Failed to parse JSON line: {line}")
+                            continue
+                        
+        except Exception as e:
+            logger.error(f"Error in streaming: {e}")
+            yield f"[Error: {str(e)}]"
+    
     async def check_connection(self) -> Dict[str, Any]:
         """Kiểm tra kết nối đến Ollama"""
         try:
@@ -281,6 +364,69 @@ class OpenAIProvider:
             response.raise_for_status()
             data = response.json()
             return data["choices"][0]["message"]["content"]
+    
+    async def generate_stream(
+        self,
+        user_message: str,
+        conversation_history: Optional[List[Dict[str, str]]],
+        system_prompt: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int]
+    ):
+        """Generate streaming response qua OpenAI API"""
+        import json
+        
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY not set")
+        
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        if conversation_history:
+            messages.extend(conversation_history)
+        messages.append({"role": "user", "content": user_message})
+        
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True
+        }
+        if max_tokens:
+            payload["max_tokens"] = max_tokens
+        
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with client.stream("POST", url, headers=headers, json=payload) as response:
+                    response.raise_for_status()
+                    
+                    async for line in response.aiter_lines():
+                        if not line.strip() or not line.startswith("data: "):
+                            continue
+                        
+                        data_str = line[6:]  # Remove "data: " prefix
+                        if data_str == "[DONE]":
+                            break
+                        
+                        try:
+                            data = json.loads(data_str)
+                            choices = data.get("choices", [])
+                            if choices:
+                                delta = choices[0].get("delta", {})
+                                chunk = delta.get("content", "")
+                                if chunk:
+                                    yield chunk
+                        except json.JSONDecodeError:
+                            continue
+        except Exception as e:
+            logger.error(f"Error in OpenAI streaming: {e}")
+            yield f"[Error: {str(e)}]"
 
 
 class AnthropicProvider:
@@ -334,3 +480,67 @@ class AnthropicProvider:
             response.raise_for_status()
             data = response.json()
             return data["content"][0]["text"]
+    
+    async def generate_stream(
+        self,
+        user_message: str,
+        conversation_history: Optional[List[Dict[str, str]]],
+        system_prompt: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int]
+    ):
+        """Generate streaming response qua Anthropic API"""
+        import json
+        
+        if not self.api_key:
+            raise ValueError("ANTHROPIC_API_KEY not set")
+        
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json"
+        }
+        
+        messages = []
+        if conversation_history:
+            messages.extend(conversation_history)
+        messages.append({"role": "user", "content": user_message})
+        
+        payload = {
+            "model": "claude-3-sonnet-20240229",
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens or 1024,
+            "stream": True
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+        
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with client.stream("POST", url, headers=headers, json=payload) as response:
+                    response.raise_for_status()
+                    
+                    async for line in response.aiter_lines():
+                        if not line.strip():
+                            continue
+                        
+                        try:
+                            # Anthropic uses event-stream format
+                            if line.startswith("data: "):
+                                data_str = line[6:]
+                                if data_str == "[DONE]":
+                                    break
+                                data = json.loads(data_str)
+                                
+                                if data.get("type") == "content_block_delta":
+                                    delta = data.get("delta", {})
+                                    chunk = delta.get("text", "")
+                                    if chunk:
+                                        yield chunk
+                        except json.JSONDecodeError:
+                            continue
+        except Exception as e:
+            logger.error(f"Error in Anthropic streaming: {e}")
+            yield f"[Error: {str(e)}]"

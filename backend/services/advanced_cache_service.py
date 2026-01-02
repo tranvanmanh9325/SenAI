@@ -512,6 +512,18 @@ class AdvancedCacheService:
     def get_cached_pattern_analysis(self, session_id: str, limit: int = 10) -> Optional[Dict[str, Any]]:
         """Get cached pattern analysis"""
         return self.convenience.get_cached_pattern_analysis(session_id, limit)
+    
+    def invalidate_llm_cache_by_pattern(self, pattern: str) -> int:
+        """Smart invalidation: Invalidate LLM cache entries matching pattern"""
+        return self.convenience.invalidate_llm_cache_by_pattern(pattern)
+    
+    def invalidate_llm_cache_for_user_message(self, user_message: str) -> int:
+        """Invalidate all LLM cache entries for a specific user message"""
+        return self.convenience.invalidate_llm_cache_for_user_message(user_message)
+    
+    def invalidate_stale_llm_cache(self, max_age_hours: int = 168) -> int:
+        """Invalidate stale LLM cache entries older than specified age"""
+        return self.convenience.invalidate_stale_llm_cache(max_age_hours)
 
 
 # Global instance (will be initialized with db_session when needed)

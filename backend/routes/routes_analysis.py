@@ -24,6 +24,13 @@ from models import AgentConversation, ConversationFeedback, ConversationEmbeddin
 # Import dependencies from app
 import app
 
+# Import dependency injection
+from dependencies import (
+    get_feedback_repository,
+    get_conversation_repository,
+    get_feedback_service
+)
+
 # Get references from app module
 get_db = app.get_db
 FeedbackCreate = app.FeedbackCreate
@@ -47,7 +54,10 @@ async def submit_feedback(
     - user_correction: Câu trả lời đúng nếu user muốn sửa
     - is_helpful: yes, no, partially
     """
-    fb_service = FeedbackService(db)
+    # Use dependency injection for FeedbackService
+    feedback_repo = get_feedback_repository(db)
+    conversation_repo = get_conversation_repository(db)
+    fb_service = FeedbackService(feedback_repo, conversation_repo)
     result = fb_service.submit_feedback(
         conversation_id=feedback.conversation_id,
         rating=feedback.rating,
@@ -69,7 +79,10 @@ async def get_feedback_stats(
     api_key: str = Depends(verify_api_key)
 ):
     """Lấy thống kê feedback"""
-    fb_service = FeedbackService(db)
+    # Use dependency injection for FeedbackService
+    feedback_repo = get_feedback_repository(db)
+    conversation_repo = get_conversation_repository(db)
+    fb_service = FeedbackService(feedback_repo, conversation_repo)
     stats = fb_service.get_feedback_stats(conversation_id)
     return FeedbackStats(**stats)
 
@@ -81,7 +94,10 @@ async def get_conversations_with_feedback(
     api_key: str = Depends(verify_api_key)
 ):
     """Lấy conversations kèm feedback để review"""
-    fb_service = FeedbackService(db)
+    # Use dependency injection for FeedbackService
+    feedback_repo = get_feedback_repository(db)
+    conversation_repo = get_conversation_repository(db)
+    fb_service = FeedbackService(feedback_repo, conversation_repo)
     conversations = fb_service.get_conversations_with_feedback(
         rating_threshold=rating_threshold,
         limit=limit
@@ -96,7 +112,10 @@ async def get_feedback_for_training(
     api_key: str = Depends(verify_api_key)
 ):
     """Lấy feedback để sử dụng trong training/fine-tuning"""
-    fb_service = FeedbackService(db)
+    # Use dependency injection for FeedbackService
+    feedback_repo = get_feedback_repository(db)
+    conversation_repo = get_conversation_repository(db)
+    fb_service = FeedbackService(feedback_repo, conversation_repo)
     training_data = fb_service.get_feedback_for_training(
         min_rating=min_rating,
         include_corrections=include_corrections

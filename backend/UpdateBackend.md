@@ -2,55 +2,24 @@
 
 ## 📋 Mục Lục
 1. [Bảo Mật (Security)](#1-bảo-mật-security)
-2. [Hiệu Năng (Performance)](#2-hiệu-năng-performance)
-3. [Chất Lượng Code (Code Quality)](#3-chất-lượng-code-code-quality)
-4. [Tính Năng Mới (New Features)](#4-tính-năng-mới-new-features)
-5. [Kiểm Thử (Testing)](#5-kiểm-thử-testing)
-6. [Tài Liệu (Documentation)](#6-tài-liệu-documentation)
-7. [Xử Lý Lỗi (Error Handling)](#7-xử-lý-lỗi-error-handling)
-8. [Cơ Sở Dữ Liệu (Database)](#8-cơ-sở-dữ-liệu-database)
-9. [API Improvements](#9-api-improvements)
-10. [Monitoring & Observability](#10-monitoring--observability)
-11. [DevOps & Deployment](#11-devops--deployment)
+2. [Chất Lượng Code (Code Quality)](#2-chất-lượng-code-code-quality)
+3. [Tính Năng Mới (New Features)](#3-tính-năng-mới-new-features)
+4. [Kiểm Thử (Testing)](#4-kiểm-thử-testing)
+5. [Tài Liệu (Documentation)](#5-tài-liệu-documentation)
+6. [Xử Lý Lỗi (Error Handling)](#6-xử-lý-lỗi-error-handling)
+7. [Cơ Sở Dữ Liệu (Database)](#7-cơ-sở-dữ-liệu-database)
+8. [API Improvements](#8-api-improvements)
+9. [Monitoring & Observability](#9-monitoring--observability)
+10. [DevOps & Deployment](#10-devops--deployment)
 
-## 2. Hiệu Năng (Performance)
-
-### 2.1. LLM Response Optimization
-**Vấn đề hiện tại:**
-- Không có streaming responses
-- Không có response compression
-- Timeout có thể cần điều chỉnh
-
-**Cải thiện:**
-- ✅ Streaming responses cho LLM (Server-Sent Events)
-- ✅ Response compression (gzip)
-- ✅ Adaptive timeout based on request complexity
-- ✅ Response caching với smart invalidation
-- ✅ Batch LLM requests khi có thể
-
-### 2.2. Embedding Generation Optimization
-**Vấn đề hiện tại:**
-- Embedding generation có thể chậm với large texts
-- Không có batch embedding generation
-
-**Cải thiện:**
-- ✅ Batch embedding generation
-- ✅ Parallel embedding generation
-- ✅ Embedding model optimization (quantization)
-- ✅ Pre-compute embeddings cho common queries
-
----
-
-## 3. Chất Lượng Code (Code Quality)
+## 2. Chất Lượng Code (Code Quality)
 
 ### 3.1. Code Structure
 **Vấn đề hiện tại:**
-- Một số files quá dài (llm_service.py, routes.py)
 - Circular imports có thể xảy ra
 - Thiếu separation of concerns
 
 **Cải thiện:**
-- ✅ Refactor large files thành smaller modules
 - ✅ Dependency injection pattern
 - ✅ Service layer pattern rõ ràng hơn
 - ✅ Repository pattern cho database access
@@ -88,7 +57,7 @@
 
 ---
 
-## 4. Tính Năng Mới (New Features)
+## 3. Tính Năng Mới (New Features)
 
 ### 4.1. User Management
 **Tính năng mới:**
@@ -155,7 +124,7 @@
 
 ---
 
-## 5. Kiểm Thử (Testing)
+## 4. Kiểm Thử (Testing)
 
 ### 5.1. Unit Tests
 **Vấn đề hiện tại:**
@@ -191,7 +160,7 @@
 
 ---
 
-## 6. Tài Liệu (Documentation)
+## 5. Tài Liệu (Documentation)
 
 ### 6.1. API Documentation
 **Vấn đề hiện tại:**
@@ -229,7 +198,7 @@
 
 ---
 
-## 7. Xử Lý Lỗi (Error Handling)
+## 6. Xử Lý Lỗi (Error Handling)
 
 ### 7.1. Error Recovery
 **Cải thiện:**
@@ -254,7 +223,7 @@
 
 ---
 
-## 8. Cơ Sở Dữ Liệu (Database)
+## 7. Cơ Sở Dữ Liệu (Database)
 
 ### 8.1. Database Migrations
 **Vấn đề hiện tại:**
@@ -291,7 +260,7 @@
 
 ---
 
-## 9. API Improvements
+## 8. API Improvements
 
 ### 9.1. API Versioning
 **Cải thiện:**
@@ -323,7 +292,7 @@
 
 ---
 
-## 10. Monitoring & Observability
+## 9. Monitoring & Observability
 
 ### 10.1. Logging Improvements
 **Vấn đề hiện tại:**
@@ -361,7 +330,7 @@
 
 ---
 
-## 11. DevOps & Deployment
+## 10. DevOps & Deployment
 
 ### 11.1. Containerization
 **Cải thiện:**
@@ -405,9 +374,8 @@
 
 ### Priority 1 (Critical - Làm ngay)
 1. **Security**: API key management, input validation
-2. **Performance**: Database indexes, LLM response optimization
-3. **Testing**: Unit tests cho critical services
-4. **Error Handling**: Error recovery và monitoring
+2. **Testing**: Unit tests cho critical services
+3. **Error Handling**: Error recovery và monitoring
 
 ### Priority 2 (Important - Làm trong 1-2 tháng)
 1. **Features**: User management, conversation management

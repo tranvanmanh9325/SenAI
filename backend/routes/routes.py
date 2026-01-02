@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import logging
+import json
 
 # Import services
 from services.llm_service import llm_service
@@ -316,6 +318,60 @@ async def get_llm_status(request: Request, api_key = Depends(verify_api_key)):
         "ollama_status": ollama_status
     }
 
+@router.post("/api/llm/stream")
+@limiter_with_api_key.limit(STRICT_RATE_LIMIT)
+async def stream_llm_response(
+    request: Request,
+    user_message: str,
+    conversation_history: Optional[List[Dict[str, str]]] = None,
+    system_prompt: Optional[str] = None,
+    temperature: float = 0.7,
+    max_tokens: Optional[int] = None,
+    api_key = Depends(verify_api_key)
+):
+    """
+    Stream LLM response sử dụng Server-Sent Events (SSE)
+    
+    Args:
+        user_message: Tin nhắn từ user
+        conversation_history: Lịch sử hội thoại (optional)
+        system_prompt: System prompt tùy chỉnh (optional)
+        temperature: Độ sáng tạo (0.0-1.0, default: 0.7)
+        max_tokens: Số token tối đa (optional)
+    
+    Returns:
+        StreamingResponse với Server-Sent Events format
+    """
+    async def generate_sse():
+        """Generate SSE formatted chunks"""
+        try:
+            async for chunk in llm_service.generate_stream(
+                user_message=user_message,
+                conversation_history=conversation_history,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens
+            ):
+                # Format as SSE: data: <content>\n\n
+                yield f"data: {json.dumps({'content': chunk})}\n\n"
+            
+            # Send done event
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        except Exception as e:
+            # Send error event
+            error_msg = f"Error: {str(e)}"
+            yield f"data: {json.dumps({'error': error_msg})}\n\n"
+    
+    return StreamingResponse(
+        generate_sse(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable buffering for nginx
+        }
+    )
+
 # Fine-tuning endpoints
 @router.get("/api/finetune/stats")
 async def get_finetune_stats(
@@ -397,3 +453,63 @@ async def get_finetune_instructions(
     return {
         "instructions": ft_service.prepare_finetune_instructions()
     }
+
+# Batch LLM requests endpoint
+@router.post("/api/llm/batch")
+@limiter_with_api_key.limit(STRICT_RATE_LIMIT)
+async def batch_llm_requests(
+    request: Request,
+    requests: List[Dict[str, Any]],
+    use_cache: bool = True,
+    api_key = Depends(verify_api_key)
+):
+    """
+    Batch LLM requests - xử lý nhiều requests cùng lúc
+    
+    Args:
+        requests: List of request dicts, mỗi dict chứa:
+            - user_message: str (required)
+            - conversation_history: Optional[List[Dict[str, str]]]
+            - system_prompt: Optional[str]
+            - temperature: float (default: 0.7)
+            - max_tokens: Optional[int]
+        use_cache: Có sử dụng cache không (default: True)
+    
+    Returns:
+        List of response dicts với keys: response, error, request_index
+    """
+    try:
+        # Validate requests
+        if not requests or len(requests) == 0:
+            raise HTTPException(status_code=400, detail="Requests list cannot be empty")
+        
+        if len(requests) > 100:  # Limit batch size
+            raise HTTPException(status_code=400, detail="Batch size cannot exceed 100 requests")
+        
+        # Validate each request
+        for i, req in enumerate(requests):
+            if not isinstance(req, dict):
+                raise HTTPException(status_code=400, detail=f"Request {i} must be a dictionary")
+            if "user_message" not in req or not req["user_message"]:
+                raise HTTPException(status_code=400, detail=f"Request {i} must have 'user_message'")
+        
+        # Process batch requests
+        results = await llm_service.generate_batch(requests, use_cache=use_cache)
+        
+        return {
+            "results": results,
+            "total": len(results),
+            "successful": sum(1 for r in results if r.get("error") is None),
+            "failed": sum(1 for r in results if r.get("error") is not None)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise handle_error(
+            e,
+            category=ErrorCategory.LLM,
+            severity=ErrorSeverity.ERROR,
+            context="batch_llm_requests",
+            user_message="Không thể xử lý batch requests. Vui lòng thử lại sau.",
+            status_code=500
+        )
