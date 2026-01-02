@@ -28,16 +28,18 @@ namespace {
 MainWindow::MainWindow() 
     : hwnd_(NULL), hInstance_(NULL), sessionId_("default_session"),
       // GDI objects are initialized as smart pointers (default to nullptr)
-      windowWidth_(900), windowHeight_(700),
+      windowWidth_(UiConstants::Window::DEFAULT_WIDTH), windowHeight_(UiConstants::Window::DEFAULT_HEIGHT),
       hChatInput_(NULL), hChatHistory_(NULL), hSendButton_(NULL), hNewSessionButton_(NULL),
       originalEditProc_(NULL),
-      sidebarWidth_(280), sidebarScrollOffset_(0), selectedConversationIndex_(-1),
+      sidebarWidth_(UiConstants::Sidebar::WIDTH), sidebarScrollOffset_(0), selectedConversationIndex_(-1),
       isSendButtonHover_(false), isNewSessionButtonHover_(false), sidebarVisible_(true),
       healthStatus_(HealthStatus::Checking), healthCheckTimerId_(0),
       isSettingsIconHover_(false), hoveredMessageIndex_(-1),
       hoveredCopyIconIndex_(-1), copiedMessageIndex_(-1), copyFeedbackTimerId_(0),
       hTooltipWindow_(NULL), tooltipMessageIndex_(-1),
       enableCtrlEnterToSend_(true), lastClickTime_(0), lastClickIndex_(-1),
+      searchVisible_(false), hSearchEdit_(NULL), currentSearchIndex_(-1),
+      isSearchPrevButtonHover_(false), isSearchNextButtonHover_(false), isSearchCloseButtonHover_(false),
       modelName_(L"") {
     configPath_ = GetConfigPath();
     // Generate session ID
@@ -60,6 +62,7 @@ MainWindow::MainWindow()
     inputRect_ = {0, 0, 0, 0};
     newSessionButtonRect_ = {0, 0, 0, 0};
     sendButtonRect_ = {0, 0, 0, 0};
+    searchBarRect_ = {0, 0, 0, 0};
 }
 
 MainWindow::~MainWindow() {
@@ -72,13 +75,17 @@ MainWindow::~MainWindow() {
     if (healthCheckTimerId_ && hwnd_) {
         KillTimer(hwnd_, healthCheckTimerId_);
     }
+    // Clean up search bar
+    if (searchVisible_) {
+        HideSearchBar();
+    }
 }
 
 void MainWindow::OnCommand(WPARAM wParam) {
     switch (LOWORD(wParam)) {
         case 1001: // Chat input
             if (HIWORD(wParam) == EN_CHANGE) {
-                wchar_t buffer[1024];
+                wchar_t buffer[UiConstants::Input::BUFFER_SIZE];
                 GetWindowTextW(hChatInput_, buffer, static_cast<int>(sizeof(buffer) / sizeof(wchar_t)));
                 bool newShowPlaceholder = (buffer[0] == L'\0');
 
@@ -123,6 +130,15 @@ void MainWindow::OnCommand(WPARAM wParam) {
                 InvalidateRect(hwnd_, NULL, TRUE);
             }
             break;
+        case 2001: // Search edit control
+            if (HIWORD(wParam) == EN_CHANGE) {
+                wchar_t buffer[256];
+                GetWindowTextW(hSearchEdit_, buffer, static_cast<int>(sizeof(buffer) / sizeof(wchar_t)));
+                std::wstring query(buffer);
+                PerformSearch(query);
+            }
+            break;
+        // Search buttons are now custom drawn, handled in HandleLeftButtonDown
         default:
             break;
     }

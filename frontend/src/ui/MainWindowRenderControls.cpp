@@ -1,5 +1,6 @@
 #include <windows.h>
 #include "MainWindow.h"
+#include "UiConstants.h"
 #include <string>
 #include <algorithm>
 
@@ -54,7 +55,7 @@ void MainWindow::DrawInputField(HDC hdc) {
         HWND focusedWindow = GetFocus();
         if (focusedWindow != hChatInput_) {
             // Check if edit control is actually empty
-            wchar_t buffer[1024] = {0};
+            wchar_t buffer[UiConstants::Input::BUFFER_SIZE] = {0};
             GetWindowTextW(hChatInput_, buffer, static_cast<int>(sizeof(buffer) / sizeof(wchar_t)));
             if (buffer[0] == L'\0') {
                 SetBkMode(hdc, TRANSPARENT);
@@ -69,7 +70,7 @@ void MainWindow::DrawInputField(HDC hdc) {
                     textRect = inner;
                 }
                 
-                int inputPaddingX = 50;
+                int inputPaddingX = UiConstants::Input::PADDING_X;
                 int buttonMarginRight = 12;
                 int gapTextToButton = 10;
                 int inputHeight = inner.bottom - inner.top;
@@ -137,7 +138,7 @@ void MainWindow::DrawSendButton(HDC hdc, const RECT& rc) {
     SetBkMode(hdcMem, TRANSPARENT);
     
     // Draw gradient circle (cyan -> violet)
-    COLORREF outerColor = isSendButtonHover_ ? RGB(100, 235, 255) : RGB(74, 215, 255);
+    COLORREF outerColor = isSendButtonHover_ ? UiConstants::Colors::SendButton::HOVER : UiConstants::Colors::SendButton::NORMAL;
     COLORREF innerColor = isSendButtonHover_ ? RGB(184, 137, 255) : RGB(154, 107, 255);
 
     HBRUSH brush = CreateSolidBrush(outerColor);

@@ -1,5 +1,6 @@
 #include <windows.h>
 #include "MainWindow.h"
+#include "UiConstants.h"
 #include <string>
 
 // Sidebar and header controls rendering split from MainWindowRender.cpp
@@ -22,7 +23,8 @@ void MainWindow::DrawSidebar(HDC hdc) {
     // Smart pointer automatically cleans up
     
     // Border on right - use resource manager
-    auto borderPen = gdiManager_->CreatePen(PS_SOLID, 1, RGB(40, 50, 70));
+    using namespace UiConstants;
+    auto borderPen = gdiManager_->CreatePen(PS_SOLID, 1, Colors::Sidebar::BORDER);
     HGDIOBJ oldPen = SelectObject(hdc, borderPen->Get());
     MoveToEx(hdc, sidebarRect.right - 1, sidebarRect.top, NULL);
     LineTo(hdc, sidebarRect.right - 1, sidebarRect.bottom);
@@ -37,7 +39,7 @@ void MainWindow::DrawSidebar(HDC hdc) {
 
     // Title
     SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(200, 210, 230));
+    SetTextColor(hdc, Colors::Sidebar::TEXT_NORMAL);
     // Use cached sidebar title font
     HFONT oldFont = (HFONT)SelectObject(hdc, hSidebarTitleFont_->Get());
     
@@ -51,10 +53,10 @@ void MainWindow::DrawSidebar(HDC hdc) {
     // Font is managed by smart pointer
     
     // List conversations
-    int itemHeight = 75;  // Tăng chiều cao item một chút
-    int itemPaddingX = 16; // Tăng padding để dễ đọc hơn
-    int itemPaddingY = 8;
-    int startY = titleRect.bottom + 12;
+    int itemHeight = Sidebar::ITEM_HEIGHT;
+    int itemPaddingX = Sidebar::ITEM_PADDING_X;
+    int itemPaddingY = Sidebar::ITEM_PADDING_Y;
+    int startY = titleRect.bottom + Sidebar::SPACING_AFTER_TITLE;
     // Visible height from list top to bottom of sidebar (avoid header overlap)
     int contentTop = startY;
     int contentBottom = sidebarRect.bottom;
@@ -108,8 +110,8 @@ void MainWindow::DrawSidebar(HDC hdc) {
             // Thêm một lớp nền nhẹ với màu cyan để tạo glow effect
             RECT glowRect = itemRect;
             InflateRect(&glowRect, -2, -2);
-            auto glowBrush = gdiManager_->CreateSolidBrush(RGB(20, 50, 80));
-            auto glowPen = gdiManager_->CreatePen(PS_SOLID, 1, RGB(40, 100, 140));
+            auto glowBrush = gdiManager_->CreateSolidBrush(Colors::Sidebar::GLOW_BG);
+            auto glowPen = gdiManager_->CreatePen(PS_SOLID, 1, Colors::Sidebar::GLOW_PEN);
             HGDIOBJ oldGlowBrush = SelectObject(hdc, glowBrush->Get());
             HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen->Get());
             RoundRect(hdc, glowRect.left, glowRect.top, glowRect.right, glowRect.bottom, 8, 8);
@@ -118,7 +120,7 @@ void MainWindow::DrawSidebar(HDC hdc) {
             // Smart pointers automatically clean up
         } else if (isHovered) {
             // Subtle border and glow on hover (cyan tint, no white)
-            auto hoverPen = gdiManager_->CreatePen(PS_SOLID, 1, RGB(70, 140, 200));
+            auto hoverPen = gdiManager_->CreatePen(PS_SOLID, 1, Colors::Sidebar::HOVER_PEN);
             HGDIOBJ oldPen2 = SelectObject(hdc, hoverPen->Get());
             RoundRect(hdc, itemRect.left, itemRect.top, itemRect.right, itemRect.bottom, 10, 10);
             SelectObject(hdc, oldPen2);
@@ -127,7 +129,7 @@ void MainWindow::DrawSidebar(HDC hdc) {
             RECT glowRect = itemRect;
             InflateRect(&glowRect, -3, -3);
             auto glowBrush = gdiManager_->CreateSolidBrush(RGB(20, 34, 54));
-            auto glowPen = gdiManager_->CreatePen(PS_SOLID, 1, RGB(50, 100, 150));
+            auto glowPen = gdiManager_->CreatePen(PS_SOLID, 1, Colors::Sidebar::SELECTED_GLOW_PEN);
             HGDIOBJ oldGlowBrush = SelectObject(hdc, glowBrush->Get());
             HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen->Get());
             RoundRect(hdc, glowRect.left, glowRect.top, glowRect.right, glowRect.bottom, 8, 8);
@@ -139,7 +141,7 @@ void MainWindow::DrawSidebar(HDC hdc) {
         // Preview text với màu sáng hơn khi selected
         SelectObject(hdc, hSidebarItemFont_->Get());
         SetTextColor(hdc, isSelected ? RGB(240, 245, 255)
-                                     : (isHovered ? RGB(215, 230, 250) : RGB(200, 210, 230)));
+                                     : (isHovered ? Colors::Sidebar::TEXT_HOVER : Colors::Sidebar::TEXT_NORMAL));
         RECT previewRect = itemRect;
         previewRect.left += 4;
         previewRect.top += 8;
@@ -150,8 +152,8 @@ void MainWindow::DrawSidebar(HDC hdc) {
         
         // Timestamp với màu sáng hơn khi selected
         SelectObject(hdc, hSidebarMetaFont_->Get());
-        SetTextColor(hdc, isSelected ? RGB(160, 200, 240)
-                                     : (isHovered ? RGB(150, 180, 210) : RGB(140, 150, 180)));
+        SetTextColor(hdc, isSelected ? Colors::Sidebar::TEXT_SELECTED
+                                     : (isHovered ? RGB(150, 180, 210) : Colors::Sidebar::TEXT_META));
         RECT timeRect = previewRect;
         timeRect.top = previewRect.bottom + 4;
         timeRect.bottom = itemRect.bottom - 8;
@@ -210,27 +212,29 @@ void MainWindow::DrawNewSessionButton(HDC hdc, const RECT& rc, bool isPressed) {
 }
 
 void MainWindow::DrawStatusBadge(HDC hdc, const RECT& headerRect, RECT* outBadgeRect, int titleEndX) {
+    using namespace UiConstants;
+    
     const wchar_t* statusText;
     COLORREF bgColor, borderColor, textColor;
     
     switch (healthStatus_) {
         case HealthStatus::Online:
             statusText = UiStrings::Get(IDS_STATUS_ONLINE).c_str();
-            bgColor = RGB(50, 140, 80);      // Xanh
-            borderColor = RGB(90, 200, 120);
+            bgColor = Colors::Status::ONLINE_BG;
+            borderColor = Colors::Status::ONLINE_BORDER;
             textColor = RGB(230, 255, 240);
             break;
         case HealthStatus::Checking:
             statusText = UiStrings::Get(IDS_STATUS_CHECKING).c_str();
-            bgColor = RGB(180, 150, 60);     // Vàng/Xám (amber)
-            borderColor = RGB(220, 180, 80);
+            bgColor = Colors::Status::WARNING_BG;
+            borderColor = Colors::Status::WARNING_BORDER;
             textColor = RGB(255, 250, 230);
             break;
         case HealthStatus::Offline:
         default:
             statusText = UiStrings::Get(IDS_STATUS_OFFLINE).c_str();
-            bgColor = RGB(180, 60, 60);      // Đỏ
-            borderColor = RGB(220, 100, 100);
+            bgColor = Colors::Status::ERROR_BG;
+            borderColor = Colors::Status::ERROR_BORDER;
             textColor = RGB(255, 240, 240);
             break;
     }

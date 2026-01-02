@@ -36,6 +36,15 @@ enum StringID {
     IDS_EXIT_CONFIRM_MESSAGE,
     IDS_YES_BUTTON,
     IDS_NO_BUTTON,
+    IDS_EXPORT_TITLE,
+    IDS_EXPORT_CURRENT,
+    IDS_EXPORT_ALL,
+    IDS_EXPORT_FORMAT_LABEL,
+    IDS_EXPORT_SCOPE_LABEL,
+    IDS_EXPORT_SUCCESS,
+    IDS_EXPORT_ERROR,
+    IDS_EXPORT_ERROR_NO_MESSAGES,
+    IDS_EXPORT_ERROR_FILE_WRITE,
     // Add more as needed
 };
 
@@ -76,6 +85,15 @@ public:
         strings_[IDS_EXIT_CONFIRM_MESSAGE] = L"Bạn có muốn thoát ứng dụng?";
         strings_[IDS_YES_BUTTON] = L"Có";
         strings_[IDS_NO_BUTTON] = L"Không";
+        strings_[IDS_EXPORT_TITLE] = L"Xuất cuộc trò chuyện";
+        strings_[IDS_EXPORT_CURRENT] = L"Cuộc trò chuyện hiện tại";
+        strings_[IDS_EXPORT_ALL] = L"Tất cả cuộc trò chuyện";
+        strings_[IDS_EXPORT_FORMAT_LABEL] = L"Định dạng:";
+        strings_[IDS_EXPORT_SCOPE_LABEL] = L"Phạm vi:";
+        strings_[IDS_EXPORT_SUCCESS] = L"Xuất thành công!";
+        strings_[IDS_EXPORT_ERROR] = L"Lỗi khi xuất file";
+        strings_[IDS_EXPORT_ERROR_NO_MESSAGES] = L"Không có tin nhắn để xuất";
+        strings_[IDS_EXPORT_ERROR_FILE_WRITE] = L"Không thể ghi file";
     }
 
     // Get string by ID

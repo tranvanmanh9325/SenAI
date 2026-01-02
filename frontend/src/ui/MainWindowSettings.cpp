@@ -17,8 +17,10 @@ struct SettingsDlgData {
     RECT checkboxRect;         // Checkbox clickable area
     bool isOkHover;
     bool isCancelHover;
+    bool isExportHover;
     RECT okRect;
     RECT cancelRect;
+    RECT exportRect;
     bool shouldClose;
 };
 
@@ -69,10 +71,12 @@ LRESULT CALLBACK MainWindow::SettingsDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam
             
             // Button rects - positioned to fit within dialog (moved down for checkbox)
             // Checkbox ends around y=202 (178 + 24), buttons start at y=220 (18px gap)
+            pData->exportRect = {20, 220, 120, 252};
             pData->okRect = {320, 220, 400, 252};
             pData->cancelRect = {410, 220, 490, 252};
             pData->isOkHover = false;
             pData->isCancelHover = false;
+            pData->isExportHover = false;
             pData->shouldClose = false;
             
             return 0;
@@ -277,6 +281,25 @@ LRESULT CALLBACK MainWindow::SettingsDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam
             
             SetTextColor(hdcMem, cancelText);
             DrawTextW(hdcMem, UiStrings::Get(IDS_CANCEL_BUTTON).c_str(), -1, &pData->cancelRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            
+            // Draw Export button
+            COLORREF exportBg = pData->isExportHover ? RGB(74, 215, 255) : RGB(25, 36, 64);
+            COLORREF exportBorder = RGB(74, 215, 255);
+            COLORREF exportText = pData->isExportHover ? RGB(0, 0, 0) : RGB(232, 236, 255);
+            
+            HBRUSH exportBrush = CreateSolidBrush(exportBg);
+            HPEN exportPen = CreatePen(PS_SOLID, 1, exportBorder);
+            oldBrush = SelectObject(hdcMem, exportBrush);
+            oldPen = SelectObject(hdcMem, exportPen);
+            RoundRect(hdcMem, pData->exportRect.left, pData->exportRect.top, pData->exportRect.right, pData->exportRect.bottom, radius, radius);
+            SelectObject(hdcMem, oldBrush);
+            SelectObject(hdcMem, oldPen);
+            DeleteObject(exportBrush);
+            DeleteObject(exportPen);
+            
+            SetTextColor(hdcMem, exportText);
+            DrawTextW(hdcMem, L"Xuất", -1, &pData->exportRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            
             SelectObject(hdcMem, hOldFont);
             
             // Blit to screen
@@ -318,13 +341,16 @@ LRESULT CALLBACK MainWindow::SettingsDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam
             POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
             bool newOkHover = PtInRect(&pData->okRect, pt);
             bool newCancelHover = PtInRect(&pData->cancelRect, pt);
+            bool newExportHover = PtInRect(&pData->exportRect, pt);
             bool newCheckboxHover = PtInRect(&pData->checkboxRect, pt);
             
             if (newOkHover != pData->isOkHover || 
                 newCancelHover != pData->isCancelHover ||
+                newExportHover != pData->isExportHover ||
                 newCheckboxHover != pData->isCheckboxHover) {
                 pData->isOkHover = newOkHover;
                 pData->isCancelHover = newCancelHover;
+                pData->isExportHover = newExportHover;
                 pData->isCheckboxHover = newCheckboxHover;
                 InvalidateRect(hwnd, NULL, FALSE);
             }
@@ -338,6 +364,14 @@ LRESULT CALLBACK MainWindow::SettingsDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam
             if (PtInRect(&pData->checkboxRect, pt)) {
                 pData->isCtrlEnterChecked = !pData->isCtrlEnterChecked;
                 InvalidateRect(hwnd, NULL, FALSE);
+                return 0;
+            }
+            
+            // Handle Export button click
+            if (PtInRect(&pData->exportRect, pt)) {
+                if (pData->pMainWindow) {
+                    pData->pMainWindow->ShowExportDialog();
+                }
                 return 0;
             }
             
@@ -415,6 +449,7 @@ void MainWindow::ShowSettingsDialog() {
     dlgData.isCheckboxHover = false;
     dlgData.isOkHover = false;
     dlgData.isCancelHover = false;
+    dlgData.isExportHover = false;
     
     // Create dialog window
     HINSTANCE hInst = hInstance_ ? hInstance_ : GetModuleHandle(NULL);

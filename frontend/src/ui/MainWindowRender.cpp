@@ -3,6 +3,7 @@
 #include <dwmapi.h>
 #include "MainWindow.h"
 #include "MainWindowHelpers.h"
+#include "UiConstants.h"
 #include <string>
 
 // Rendering functions split from MainWindowUI.cpp
@@ -35,13 +36,14 @@ void MainWindow::OnPaint() {
     FillRect(hdcMem, &clientRect, hDarkBrush_->Get());
 
     // Overlay subtle grid - use resource manager
+    using namespace UiConstants;
     auto gridPen = gdiManager_->CreatePen(PS_SOLID, 1, theme_.colorGrid);
     oldPen = (HPEN)SelectObject(hdcMem, gridPen->Get());
-    for (int x = 60; x < clientRect.right; x += 80) {
+    for (int x = Grid::START_X; x < clientRect.right; x += Grid::SPACING_X) {
         MoveToEx(hdcMem, x, 0, NULL);
         LineTo(hdcMem, x, clientRect.bottom);
     }
-    for (int y = 60; y < clientRect.bottom; y += 80) {
+    for (int y = Grid::START_Y; y < clientRect.bottom; y += Grid::SPACING_Y) {
         MoveToEx(hdcMem, 0, y, NULL);
         LineTo(hdcMem, clientRect.right, y);
     }
@@ -131,6 +133,11 @@ void MainWindow::OnPaint() {
     // Draw sidebar if visible
     if (sidebarVisible_) {
         DrawSidebar(hdcMem);
+    }
+    
+    // Draw search bar if visible
+    if (searchVisible_) {
+        DrawSearchBar(hdcMem);
     }
 
     // Draw chat messages if any exist

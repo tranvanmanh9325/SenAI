@@ -11,6 +11,9 @@
 #include "HttpClient.h"
 #include "UiStrings.h"
 #include "GDIResourceManager.h"
+#include "UiConstants.h"
+#include "UiConfig.h"
+#include "../core/ExportService.h"
 
 enum class MessageType {
     User,
@@ -124,6 +127,15 @@ private:
     void OnPaint();
     BOOL OnEraseBkgnd(HDC hdc);
     
+    // Message handlers (extracted to MainWindowMessageHandlers.cpp)
+    void HandleSidebarMouseWheel(WPARAM wParam);
+    void HandleChatMouseWheel(WPARAM wParam);
+    void HandleTimer(WPARAM wParam);
+    void HandleKeyDown(WPARAM wParam);
+    void HandleLeftButtonDown(LPARAM lParam);
+    void HandleMouseMove(LPARAM lParam);
+    void HandleMouseLeave();
+    
     void SendChatMessage();
     void DrawInputField(HDC hdc);
     void DrawSendButton(HDC hdc, const RECT& rc);
@@ -235,6 +247,14 @@ private:
     void ShowSettingsDialog();
     static LRESULT CALLBACK SettingsDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     
+    // Export functionality
+    void ShowExportDialog();
+    static LRESULT CALLBACK ExportDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+    bool ExportCurrentConversation(const std::wstring& filePath, ExportFormat format);
+    bool ExportAllConversations(const std::wstring& filePath, ExportFormat format);
+    void ShowExportMessageDialog(const std::wstring& message, bool isSuccess);
+    static LRESULT CALLBACK ExportMessageDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+    
     // Exit confirmation dialog
     bool ShowExitConfirmationDialog();
     static LRESULT CALLBACK ExitConfirmDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -271,4 +291,27 @@ private:
 
     // Hover tracking for sidebar items
     int hoveredConversationIndex_ = -1;
+    
+    // Search functionality
+    bool searchVisible_ = false;              // Whether search bar is visible
+    HWND hSearchEdit_ = NULL;                 // Search input edit control
+    std::wstring searchQuery_;                 // Current search query
+    std::vector<int> searchResults_;           // Indices of messages containing search query
+    int currentSearchIndex_ = -1;              // Current highlighted search result index
+    RECT searchBarRect_;                      // Search bar rectangle for rendering
+    RECT searchPrevButtonRect_;                // Previous button rect
+    RECT searchNextButtonRect_;                // Next button rect
+    RECT searchCloseButtonRect_;               // Close button rect
+    bool isSearchPrevButtonHover_ = false;     // Hover state for Previous button
+    bool isSearchNextButtonHover_ = false;     // Hover state for Next button
+    bool isSearchCloseButtonHover_ = false;    // Hover state for Close button
+    void ShowSearchBar();
+    void HideSearchBar();
+    void PerformSearch(const std::wstring& query);
+    void NavigateToSearchResult(int direction); // 1 for next, -1 for previous
+    void ScrollToSearchResult(int messageIndex);
+    void DrawSearchBar(HDC hdc);
+    void DrawSearchButton(HDC hdc, const RECT& rect, const wchar_t* text, bool isHovered);
+    void DrawSearchHighlight(HDC hdc, const std::wstring& text, const RECT& textRect, HFONT hFont);
+    std::vector<std::pair<size_t, size_t>> FindTextMatches(const std::wstring& text, const std::wstring& query);
 };

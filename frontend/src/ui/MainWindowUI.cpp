@@ -92,6 +92,50 @@ void MainWindow::OnSize() {
         newSessionButtonRect_.bottom = newSessionButtonRect_.top + newBtnHeight;
     }
     
+    // Update search bar position if visible
+    if (searchVisible_) {
+        int headerH = theme_.headerHeight;
+        int searchBarHeight = 40;
+        int searchBarY = headerH + 2;
+        int sidebarOffset = sidebarVisible_ ? sidebarWidth_ : 0;
+        int searchBarLeft = sidebarOffset + 16;
+        int searchBarWidth = windowWidth_ - sidebarOffset - 32;
+        int searchBarRight = searchBarLeft + searchBarWidth;
+        
+        searchBarRect_.left = searchBarLeft;
+        searchBarRect_.top = searchBarY;
+        searchBarRect_.right = searchBarRight;
+        searchBarRect_.bottom = searchBarY + searchBarHeight;
+        
+        // Reposition search edit control
+        if (hSearchEdit_) {
+            SetWindowPos(hSearchEdit_, NULL,
+                searchBarLeft + 8, searchBarY + 8, searchBarWidth - 200, 24,
+                SWP_NOZORDER);
+        }
+        
+        // Update button rects
+        int buttonWidth = 40;
+        int buttonHeight = 28;
+        int buttonY = searchBarY + 6;
+        int buttonSpacing = 5;
+        
+        searchCloseButtonRect_.right = searchBarRight - 8;
+        searchCloseButtonRect_.left = searchCloseButtonRect_.right - buttonWidth;
+        searchCloseButtonRect_.top = buttonY;
+        searchCloseButtonRect_.bottom = buttonY + buttonHeight;
+        
+        searchNextButtonRect_.right = searchCloseButtonRect_.left - buttonSpacing;
+        searchNextButtonRect_.left = searchNextButtonRect_.right - buttonWidth;
+        searchNextButtonRect_.top = buttonY;
+        searchNextButtonRect_.bottom = buttonY + buttonHeight;
+        
+        searchPrevButtonRect_.right = searchNextButtonRect_.left - buttonSpacing;
+        searchPrevButtonRect_.left = searchPrevButtonRect_.right - buttonWidth;
+        searchPrevButtonRect_.top = buttonY;
+        searchPrevButtonRect_.bottom = buttonY + buttonHeight;
+    }
+    
     // Redraw without erasing background to avoid flicker
     InvalidateRect(hwnd_, NULL, FALSE);
 }

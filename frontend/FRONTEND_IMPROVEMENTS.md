@@ -4,59 +4,9 @@
 
 Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win32 API với giao diện dark theme tùy chỉnh. Tài liệu này liệt kê các cải thiện, nâng cấp và bổ sung có thể thực hiện.
 
----
-
-## 1. CẢI THIỆN CHẤT LƯỢNG CODE
-
-### 1.1. Code Organization
-**Vấn đề hiện tại:**
-- Một số file quá dài (MainWindow.cpp ~590 lines)
-- Logic business và UI rendering trộn lẫn
-- Hard-coded constants ở nhiều nơi
-
-**Giải pháp:**
-- Tách business logic ra khỏi UI code
-- Tạo constants file cho magic numbers
-- Sử dụng configuration structs thay vì hard-coded values
-- Consider using MVC hoặc MVP pattern
-
-**Ưu tiên:** Thấp
-**Độ khó:** Trung bình-Cao
-
----
-
 ## 2. TÍNH NĂNG MỚI
 
-### 2.1. Tìm kiếm trong Conversation
-**Mô tả:**
-- Cho phép user tìm kiếm text trong conversation hiện tại
-- Highlight kết quả tìm thấy
-- Navigation giữa các kết quả (Next/Previous)
-
-**Implementation:**
-- Thêm search bar trong header hoặc sidebar
-- Implement search algorithm với case-insensitive matching
-- Highlight matching text trong message bubbles
-- Keyboard shortcut: Ctrl+F
-
-**Ưu tiên:** Cao
-**Độ khó:** Trung bình
-
-### 2.2. Export Conversation
-**Mô tả:**
-- Export conversation ra file (TXT, Markdown, JSON)
-- Export tất cả conversations hoặc chỉ conversation hiện tại
-- Include metadata (timestamps, model info)
-
-**Implementation:**
-- Thêm menu "Export" trong settings hoặc context menu
-- File dialog để chọn location và format
-- Format converters cho các loại file khác nhau
-
-**Ưu tiên:** Trung bình
-**Độ khó:** Thấp-Trung bình
-
-### 2.3. Import Conversation
+### 2.1. Import Conversation
 **Mô tả:**
 - Import conversation từ file đã export
 - Restore conversation history
@@ -69,7 +19,7 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 **Ưu tiên:** Thấp
 **Độ khó:** Trung bình
 
-### 2.4. Markdown Rendering
+### 2.2. Markdown Rendering
 **Mô tả:**
 - Render markdown trong AI responses (bold, italic, links, lists)
 - Syntax highlighting cho code blocks
@@ -83,7 +33,7 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 **Ưu tiên:** Cao
 **Độ khó:** Cao
 
-### 2.5. Image Support
+### 2.3. Image Support
 **Mô tả:**
 - Hiển thị images trong messages (nếu backend support)
 - Drag & drop images vào input
@@ -98,7 +48,7 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 **Ưu tiên:** Trung bình
 **Độ khó:** Trung bình-Cao
 
-### 2.6. File Attachments
+### 2.4. File Attachments
 **Mô tả:**
 - Attach files vào messages
 - File preview và download
@@ -113,7 +63,7 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 **Ưu tiên:** Thấp
 **Độ khó:** Trung bình
 
-### 2.7. Conversation Search/Filter
+### 2.5. Conversation Search/Filter
 **Mô tả:**
 - Tìm kiếm trong sidebar conversation list
 - Filter conversations theo date, keywords
@@ -127,7 +77,7 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 **Ưu tiên:** Trung bình
 **Độ khó:** Trung bình
 
-### 2.8. Undo/Redo
+### 2.6. Undo/Redo
 **Mô tả:**
 - Undo/redo cho message editing (nếu có edit mode)
 - Undo message deletion
@@ -141,7 +91,7 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 **Ưu tiên:** Thấp
 **Độ khó:** Trung bình
 
-### 2.9. Auto-save Drafts
+### 2.7. Auto-save Drafts
 **Mô tả:**
 - Tự động lưu draft message khi user đang gõ
 - Restore draft khi mở lại app
@@ -155,7 +105,7 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 **Ưu tiên:** Trung bình
 **Độ khó:** Thấp
 
-### 2.10. Keyboard Shortcuts Documentation
+### 2.8. Keyboard Shortcuts Documentation
 **Mô tả:**
 - Hiển thị danh sách keyboard shortcuts
 - Help dialog hoặc menu item
@@ -725,14 +675,12 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 1. Network Request Optimization (Async)
 2. API Key Encryption
 3. HTTPS Support
-4. Search trong Conversation
-5. Markdown Rendering
+4. Markdown Rendering
 
 ### Medium Priority (Làm khi có thời gian)
 1. Theme System
 3. Font Size Adjustment
 4. Window State Persistence
-5. Export Conversation
 6. Conversation Search/Filter
 7. Auto-save Drafts
 8. Virtual Scrolling (nếu cần)
@@ -743,8 +691,7 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 13. CMake Improvements
 
 ### Low Priority (Nice to have)
-1. Code Organization Refactoring
-2. Import Conversation
+1. Import Conversation
 3. Image Support
 4. File Attachments
 5. Undo/Redo
@@ -786,10 +733,8 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 3. Network Request Optimization (Async)
 
 ### Phase 3: Core Features (2-3 weeks)
-1. Search trong Conversation
-2. Markdown Rendering (basic)
-3. Export Conversation
-4. Auto-save Drafts
+1. Markdown Rendering (basic)
+2. Auto-save Drafts
 
 ### Phase 4: UX Improvements (1-2 weeks)
 1. Theme System
@@ -814,10 +759,9 @@ Frontend hiện tại là một ứng dụng Windows native C++ sử dụng Win3
 4. No automated testing
 
 ### Refactoring Opportunities
-1. Tách business logic khỏi UI code
-2. Centralize configuration management
-3. Create reusable UI components
-4. Improve code documentation
+1. Centralize configuration management
+2. Create reusable UI components
+3. Improve code documentation
 
 ---
 

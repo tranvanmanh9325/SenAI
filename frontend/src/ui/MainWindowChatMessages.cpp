@@ -14,7 +14,7 @@ void MainWindow::DrawChatMessages(HDC hdc) {
     int marginBottom = 20; // Space between messages and input
     int headerH = 48;
     int sidebarOffset = sidebarVisible_ ? sidebarWidth_ : 0;
-    int messageAreaTop = headerH + 20;
+    int messageAreaTop = headerH + (searchVisible_ ? 50 : 20); // Account for search bar
     int messageAreaBottom = clientRect.bottom - inputHeight - marginBottom;
     int messageAreaLeft = sidebarOffset;
     int messageAreaRight = clientRect.right;
@@ -146,6 +146,12 @@ void MainWindow::DrawChatMessages(HDC hdc) {
                          static_cast<size_t>(hoveredMessageIndex_) < chatViewState_.messages.size() &&
                          static_cast<int>(msgIdx) == hoveredMessageIndex_);
         
+        // Check if this is the current search result
+        bool isCurrentSearchResult = (searchVisible_ && 
+                                     currentSearchIndex_ >= 0 && 
+                                     currentSearchIndex_ < static_cast<int>(searchResults_.size()) &&
+                                     static_cast<int>(msgIdx) == searchResults_[currentSearchIndex_]);
+        
         if (msgType == MessageType::User) {
             // User messages sát bên phải
             bubbleRect.left = messageAreaRight - userMessageMarginRight - bubbleWidth;
@@ -154,7 +160,10 @@ void MainWindow::DrawChatMessages(HDC hdc) {
             bubbleRect.bottom = currentY + bubbleHeight;
             COLORREF bubbleFill = RGB(30, 37, 61);
             COLORREF bubbleBorder = RGB(65, 78, 110);
-            if (isHovered) {
+            if (isCurrentSearchResult) {
+                bubbleFill = RGB(50, 60, 90); // Brighter for current search result
+                bubbleBorder = RGB(255, 255, 100); // Yellow border for current search result
+            } else if (isHovered) {
                 bubbleFill = RGB(38, 45, 75); // Brighter on hover
                 bubbleBorder = RGB(100, 130, 180); // Brighter border with glow effect
             }
@@ -198,6 +207,12 @@ void MainWindow::DrawChatMessages(HDC hdc) {
             textDrawRect.right -= bubblePaddingX;
             textDrawRect.top += bubblePaddingY;
             textDrawRect.bottom = textDrawRect.top + textHeight;
+            
+            // Draw search highlights first (behind text)
+            if (searchVisible_ && !searchQuery_.empty()) {
+                DrawSearchHighlight(hdc, msg.text, textDrawRect, hMessageFont_->Get());
+            }
+            
             DrawTextW(hdc, msg.text.c_str(), -1, &textDrawRect, DT_LEFT | DT_WORDBREAK);
 
             // Timestamp
@@ -295,6 +310,12 @@ void MainWindow::DrawChatMessages(HDC hdc) {
                 bubbleFill = RGB(24, 32, 48);
                 bubbleBorder = RGB(74, 215, 255);
                 textColor = RGB(232, 236, 255);
+            }
+            
+            // Highlight current search result
+            if (isCurrentSearchResult) {
+                bubbleFill = RGB(40, 50, 70); // Brighter for current search result
+                bubbleBorder = RGB(255, 255, 100); // Yellow border for current search result
             }
 
             // Avatar (left) – đổi màu theo loại message
@@ -415,6 +436,13 @@ void MainWindow::DrawChatMessages(HDC hdc) {
             if (isCodeBubble) {
                 SelectObject(hdc, hCodeFont_->Get());
             }
+            
+            // Draw search highlights first (behind text)
+            if (searchVisible_ && !searchQuery_.empty()) {
+                HFONT highlightFont = isCodeBubble ? hCodeFont_->Get() : hAIMessageFont_->Get();
+                DrawSearchHighlight(hdc, msg.text, textDrawRect, highlightFont);
+            }
+            
             DrawTextW(hdc, msg.text.c_str(), -1, &textDrawRect, DT_LEFT | DT_WORDBREAK);
 
             // Timestamp

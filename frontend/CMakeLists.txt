@@ -45,26 +45,34 @@ set(SOURCES
     src/ui/MainWindowRender.cpp
     src/ui/MainWindowSettings.cpp
     src/ui/MainWindowExitConfirm.cpp
+    src/ui/MainWindowExport.cpp
+    src/ui/MainWindowExportMessage.cpp
     src/ui/MainWindowRenderControls.cpp
     src/ui/MainWindowRenderSidebar.cpp
     src/ui/MainWindowHelpers.cpp
     src/ui/MainWindowMessageHelpers.cpp
+    src/ui/MainWindowMessageHandlers.cpp
+    src/ui/MainWindowSearch.cpp
     # Core files
     src/core/HttpClient.cpp
     src/core/JsonParser.cpp
     src/core/GDIResourceManager.cpp
     src/core/ErrorHandler.cpp
+    src/core/ExportService.cpp
 )
 
 set(HEADERS
     # UI headers
     src/ui/MainWindow.h
     src/ui/MainWindowHelpers.h
+    src/ui/UiConstants.h
+    src/ui/UiConfig.h
     # Core headers
     src/core/HttpClient.h
     src/core/JsonParser.h
     src/core/GDIResourceManager.h
     src/core/ErrorHandler.h
+    src/core/ExportService.h
 )
 
 # Create executable
